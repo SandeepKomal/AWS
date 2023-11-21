@@ -1,0 +1,47 @@
+Steps to Deploy React js application in ubuntu Instance using Nginx
+
+
+
+1. sudo apt-get install nginx -y  
+
+
+2. sudo apt-get install curl
+
+
+3.curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+
+
+4.sudo apt-get install -y nodejs
+
+
+5.cd /var/www/html/
+
+
+6.sudo rm index.nginx-debian.html
+
+
+7.sudo git clone (paste the url of frontend repo)
+
+
+8.cd frontend (enter into repo folder)
+
+
+9.sudo npm install
+
+
+10.sudo npm run build
+
+
+11.sudo cp -r build /var/www/html (copy the build file to /var/www/html)
+
+
+12.cd ..
+
+
+13.sudo mv build/* .
+
+
+14.There we can see files . so we can check with ip address only dont keep any port number end of the ip.
+
+
+15.SG ports:     ssh:22 , React js :3000,  Http:80

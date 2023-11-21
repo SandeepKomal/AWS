@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  TCNS3FullAccessRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: TCNS3FullAccessRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: s3fullaccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 's3:*'
+                Resource: '*'
+  RootInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      InstanceProfileName: TCNS3InstanceProfile
+      Path: /
+      Roles:
+        - !Ref TCNS3FullAccessRole
