@@ -77,3 +77,24 @@
 39) groupadd  -> To create a group
 
 40) usermod -a -G groupname username  -> To add an user to the group
+
+---------------------------------------->To increase AWS EC2 instance CPU utilization to 100% to test autoscaling group creating new instances <-------------------------------------------------------------------
+
+sudo apt-get update
+sudo apt-get install stress
+
+Then, run the stress command to generate CPU load:
+
+stress --cpu 8 --timeout 600s
+stress --cpu 2 --timeout 60
+
+cpu specifies the number of cores, timeout specifies the number of seconds this command will run.
+
+
+
+
+----------------------------------------------> For Windows: Install Windows Server 2003 Resource Toolkit <------------------------------------------------------
+
+ Then run this command in cmd:
+
+consume -cpu-time -time 5
