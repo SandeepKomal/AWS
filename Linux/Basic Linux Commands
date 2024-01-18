@@ -98,3 +98,10 @@ cpu specifies the number of cores, timeout specifies the number of seconds this 
  Then run this command in cmd:
 
 consume -cpu-time -time 5
+
+
+-------------------------------------->  Identify the Process Using Port 80 <---------------------------------------------------------------------------------------
+
+ sudo lsof -i :80 ----> This will show you the process ID (PID) of the program using port 80. 
+
+ sudo kill -9 <PID> ---> if the process using port 80 is not needed, you can stop it.Replace <PID> with the actual process ID you obtained from the lsof command.
