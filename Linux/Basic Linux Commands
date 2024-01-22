@@ -78,6 +78,8 @@
 
 40) usermod -a -G groupname username  -> To add an user to the group
 
+41) cat /etc/os-release -> To know the operating system 
+
 ---------------------------------------->To increase AWS EC2 instance CPU utilization to 100% to test autoscaling group creating new instances <-------------------------------------------------------------------
 
 sudo apt-get update
