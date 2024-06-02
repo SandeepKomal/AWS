@@ -22,8 +22,20 @@
 ##### Under the Trust relationships tab, choose Edit trust relationship.
 ##### Update the trust relationship to allow the IAM user komal to assume this role. It will look something like this:
 
-```bash
-chmod +x install_docker.sh
+```
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::ACCOUNT_ID:user/komal"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+
 ```
 
 Then, you can run the script using:
