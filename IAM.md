@@ -72,4 +72,4 @@ Replace ACCOUNT_ID with your actual AWS account ID and ROLE_NAME with the name o
 aws sts assume-role --role-arn arn:aws:iam::ACCOUNT_ID:role/EC2FullAccessRole --role-session-name KomalSession
 
 ```
-
+This command will return temporary security credentials that komal can use to access EC2 resources.
