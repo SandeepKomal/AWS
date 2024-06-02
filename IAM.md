@@ -41,6 +41,10 @@
 }
 
 ```
+![R1](https://github.com/SandeepKomal/AWS/assets/99358567/55843e52-3168-4dd0-9b82-9be80501ee92)
+![R2](https://github.com/SandeepKomal/AWS/assets/99358567/45f8cbff-d607-4180-8240-726817baf16e)
+![R3](https://github.com/SandeepKomal/AWS/assets/99358567/8ac15f5d-0b1f-4b3e-8490-d1075a013f5b)
+
 Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In this scenario Username is komal
 
 ### Step 3: Attach a Policy to Komal to Assume the Role
