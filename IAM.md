@@ -89,7 +89,7 @@ Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In thi
 
 Replace ACCOUNT_ID with your actual AWS account ID and ROLE_NAME with the name of the role you created
 
-### Step 4: Assuming the Role
+### Step 5: Assuming the Role
 ##### Now, the komal user can assume the role with the following steps:
 
 ##### Install AWS CLI (if not already installed).
@@ -106,7 +106,7 @@ This command will return temporary security credentials that sandeep_komal can u
 
 ## OR
 
-### Step 4: Using the AWS Management Console to Assume a Role
+### Step 5: Using the AWS Management Console to Assume a Role
 
 #### 1. Sign in to the AWS Management Console as the IAM user komal.
 
