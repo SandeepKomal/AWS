@@ -15,6 +15,10 @@
 ##### Attach policies that define the permissions for this role. Choose the necessary policy or create a custom one if required.
 ##### Choose Next: Tags to add tags (optional) and then Next: Review.
 ##### Enter a Role name and description, and then choose Create role.
+![1 ](https://github.com/SandeepKomal/AWS/assets/99358567/c3e04af2-c566-4292-b58f-d66743c180ab)
+![2](https://github.com/SandeepKomal/AWS/assets/99358567/5c3d1c74-e4bc-4f4c-bec9-4bf810f83d56)
+![3](https://github.com/SandeepKomal/AWS/assets/99358567/9ade33e9-3637-4e92-b663-af84acf7c0bf)
+![4](https://github.com/SandeepKomal/AWS/assets/99358567/b95e554d-cf18-49b4-ac56-596aef5e6d14)
 
 
 ### Step 2: Modify Trust Relationship for the Role
