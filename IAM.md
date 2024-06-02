@@ -105,7 +105,7 @@ After switching roles, komal will have the permissions granted by the EC2FullAcc
 
         Go to AWS Management Console.
         Enter komal's username and password.
-        ![L1](https://github.com/SandeepKomal/AWS/assets/99358567/d2151a23-f1c2-44f2-bd99-a4c3a361636f)
+  ![L1](https://github.com/SandeepKomal/AWS/assets/99358567/d2151a23-f1c2-44f2-bd99-a4c3a361636f)
 
         
 #### Switch Role:
