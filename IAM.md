@@ -114,10 +114,10 @@ After switching roles, komal will have the permissions granted by the EC2FullAcc
 
 #### Enter Role Information:
 
-     In the Account field, enter your AWS account ID.
-     In the Role field, enter EC2FullAccessRole.
-     In the Display Name field, enter a name for the session, such as EC2FullAccess.
-     Optionally, choose a color for the role to help differentiate it.
+  In the Account field, enter your AWS account ID.
+  In the Role field, enter EC2FullAccessRole.
+  In the Display Name field, enter a name for the session, such as EC2FullAccess.
+  Optionally, choose a color for the role to help differentiate it.
 
 #### Switch Role:
 
