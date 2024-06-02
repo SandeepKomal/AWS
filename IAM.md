@@ -78,15 +78,14 @@ This command will return temporary security credentials that komal can use to ac
 
 ### Step 4: Using the AWS Management Console to Assume a Role
 
+#### 1. Sign in to the AWS Management Console as the IAM user komal.
 
-Using the AWS Management Console to Assume a Role
-Sign in to the AWS Management Console as the IAM user komal.
+#### Switch Role:
 
-Switch Role:
-
-In the top-right corner of the console, click on the account name (or the AWS account ID).
-Select Switch Role from the dropdown menu.
-Enter Role Information:
+  ##### In the top-right corner of the console, click on the account name (or the AWS account ID).
+  ##### Select Switch Role from the dropdown menu.
+  
+#### Enter Role Information:
 
 Account: Enter the AWS account ID (ACCOUNT_ID).
 Role: Enter the name of the role you want to assume (EC2FullAccessRole).
