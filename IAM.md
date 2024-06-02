@@ -4,16 +4,16 @@
 ##### Let's take a scenario where Naveen, a user with full admin-level access to an AWS account, needs to attach an IAM role to an existing IAM user, Komal, who currently has no access to resources.
 
 
-## Step-by-Step Instructions:
-### Step 1: Create an IAM Role
-### Step 2: Sign in to the AWS Management Console as Naveen.
-### Step 3: Navigate to the IAM service.
-### Step 4: In the left navigation pane, choose Roles and then Create role.
-### Step 5: Select AWS Service and choose the service that will use this role (e.g., EC2, Lambda), or select Another AWS account if you need to allow cross-account access.
-### Step 6: Select the use case for your role, and then choose Next: Permissions.
-### Step 7: Attach policies that define the permissions for this role. Choose the necessary policy or create a custom one if required.
-### Step 8: Choose Next: Tags to add tags (optional) and then Next: Review.
-### Step 9: Enter a Role name and description, and then choose Create role.
+#### Step-by-Step Instructions:
+###### Step 1: Create an IAM Role
+###### Step 2: Sign in to the AWS Management Console as Naveen.
+###### Step 3: Navigate to the IAM service.
+###### Step 4: In the left navigation pane, choose Roles and then Create role.
+###### Step 5: Select AWS Service and choose the service that will use this role (e.g., EC2, Lambda), or select Another AWS account if you need to allow cross-account access.
+###### Step 6: Select the use case for your role, and then choose Next: Permissions.
+###### Step 7: Attach policies that define the permissions for this role. Choose the necessary policy or create a custom one if required.
+###### Step 8: Choose Next: Tags to add tags (optional) and then Next: Review.
+###### Step 9: Enter a Role name and description, and then choose Create role.
 
 
 Save this script in a file, for example, `install_docker.sh`, and make it executable using:
