@@ -102,7 +102,7 @@ Replace ACCOUNT_ID with your actual AWS account ID and ROLE_NAME with the name o
 aws sts assume-role --role-arn arn:aws:iam::ACCOUNT_ID:role/EC2FullAccessRole --role-session-name sandeep_komalSession
 
 ```
-This command will return temporary security credentials that komal can use to access EC2 resources.
+This command will return temporary security credentials that sandeep_komal can use to access EC2 resources.
 
 ## OR
 
@@ -134,7 +134,7 @@ After switching roles, komal will have the permissions granted by the EC2FullAcc
 #### 1. Sign In to AWS Management Console:
 
         Go to AWS Management Console.
-        Enter komal's username and password.
+        Enter sandeep_komal's username and password.
 
 ![L1](https://github.com/SandeepKomal/AWS/assets/99358567/3793fa2b-07ae-4731-a20e-40dcdc93e7e5)
 
