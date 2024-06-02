@@ -6,8 +6,8 @@
 
 ## Step-by-Step Instructions:
 
-##### Step 1: Create an IAM Role
-      Sign in to the AWS Management Console as Naveen.
+#### Step 1: Create an IAM Role
+##### Sign in to the AWS Management Console as Naveen.
 ##### Navigate to the IAM service.
 ##### In the left navigation pane, choose Roles and then Create role.
 ##### Select AWS Service and choose the service that will use this role (e.g., EC2, Lambda), or select Another AWS account if you need to allow cross-account access.
@@ -17,7 +17,7 @@
 ##### Enter a Role name and description, and then choose Create role.
 
 
-### Step 2: Modify Trust Relationship for the Role
+#### Step 2: Modify Trust Relationship for the Role
 ##### Go to the newly created role and select it.
 ##### Under the Trust relationships tab, choose Edit trust relationship.
 ##### Update the trust relationship to allow the IAM user komal to assume this role. It will look something like this:
