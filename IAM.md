@@ -4,9 +4,9 @@
 ##### Let's take a scenario where Naveen, a user with full admin-level access to an AWS account, needs to attach an IAM role to an existing IAM user, Komal, who currently has no access to resources.
 
 
-### Step-by-Step Instructions:
+## Step-by-Step Instructions:
 
-##### Step 1: Create an IAM Role
+### Step 1: Create an IAM Role
 ##### Sign in to the AWS Management Console as Naveen.
 ##### Navigate to the IAM service.
 ##### In the left navigation pane, choose Roles and then Create role.
@@ -17,10 +17,10 @@
 ##### Enter a Role name and description, and then choose Create role.
 
 
-#### Step 2: Modify Trust Relationship for the Role
-#### Go to the newly created role and select it.
-#### Under the Trust relationships tab, choose Edit trust relationship.
-#### Update the trust relationship to allow the IAM user komal to assume this role. It will look something like this:
+### Step 2: Modify Trust Relationship for the Role
+##### Go to the newly created role and select it.
+##### Under the Trust relationships tab, choose Edit trust relationship.
+##### Update the trust relationship to allow the IAM user komal to assume this role. It will look something like this:
 
 ```bash
 chmod +x install_docker.sh
