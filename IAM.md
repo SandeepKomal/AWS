@@ -23,13 +23,13 @@
 ### Step 2: Create an IAM User (sandeep_komal)
 ##### In the IAM service, navigate to the Users section.
 ##### Click on Add user.
-###### Enter the User name (e.g., komal).
-###### Select the Access type (e.g., Programmatic access).
+##### Enter the User name (e.g., komal).
+##### Select the Access type (e.g., Programmatic access).
 ##### Click Next: Permissions, then choose Attach existing policies directly.
 ##### Attach the AmazonEC2ReadOnlyAccess policy for basic access (additional permissions can be added as needed),but in this case we are not attachinh it here.
-###### Click Next: Tags to add tags (optional) and then Next: Review.
+##### Click Next: Tags to add tags (optional) and then Next: Review.
 ##### Review the user details and click Create user.
-###### Save the Access key ID and Secret access key for sandeep_komal.
+##### Save the Access key ID and Secret access key for sandeep_komal.
 
 ### Step 3: Modify Trust Relationship for the Role
 ##### Go to the newly created role and select it.
