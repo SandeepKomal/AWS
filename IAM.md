@@ -65,6 +65,13 @@ Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In thi
 }
 
 ```
+![US1](https://github.com/SandeepKomal/AWS/assets/99358567/41f613df-fad7-43bd-b325-0aab905460d0)
+![us2](https://github.com/SandeepKomal/AWS/assets/99358567/b634cbbc-4801-4487-8afa-4cfca4ba3e2e)
+![US3](https://github.com/SandeepKomal/AWS/assets/99358567/85fd3b8c-ed15-48a5-a493-a5c8db99890f)
+![US4](https://github.com/SandeepKomal/AWS/assets/99358567/5cc86c30-64cf-48ff-a21d-a2c4d7d0ffb8)
+![US5](https://github.com/SandeepKomal/AWS/assets/99358567/d8dfcb48-3a88-4790-9260-bbafb7049e42)
+![US6](https://github.com/SandeepKomal/AWS/assets/99358567/0e3ec9f1-a2c8-4bcb-acd6-34ef3a91f865)
+
 Replace ACCOUNT_ID with your actual AWS account ID and ROLE_NAME with the name of the role you created
 
 ### Step 4: Assuming the Role
