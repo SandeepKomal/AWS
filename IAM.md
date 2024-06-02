@@ -23,13 +23,18 @@
 ### Step 2: Create an IAM User (sandeep_komal)
 ##### In the IAM service, navigate to the Users section.
 ##### Click on Add user.
-##### Enter the User name (e.g., komal).
+##### Enter the User name (e.g., sandeep_komal).
 ##### Select the Access type (e.g., Programmatic access).
 ##### Click Next: Permissions, then choose Attach existing policies directly.
 ##### Attach the AmazonEC2ReadOnlyAccess policy for basic access (additional permissions can be added as needed),but in this case we are not attachinh it here.
 ##### Click Next: Tags to add tags (optional) and then Next: Review.
 ##### Review the user details and click Create user.
 ##### Save the Access key ID and Secret access key for sandeep_komal.
+![u1](https://github.com/SandeepKomal/AWS/assets/99358567/dcff9913-0b16-4af3-890c-fb966e678adf)
+![u2](https://github.com/SandeepKomal/AWS/assets/99358567/ebc3aba5-60ac-497f-a0ef-6d5b26cf43d6)
+![u3](https://github.com/SandeepKomal/AWS/assets/99358567/44d02fe8-32a0-47c8-8d75-7d4439caa56d)
+![u4](https://github.com/SandeepKomal/AWS/assets/99358567/140ba09e-9a2b-4cb4-a4ef-5d3bf57a2983)
+![u5](https://github.com/SandeepKomal/AWS/assets/99358567/b320c9c6-02fd-4d59-80be-ee9c2d4d27d8)
 
 ### Step 3: Modify Trust Relationship for the Role
 ##### Go to the newly created role and select it.
@@ -155,5 +160,5 @@ After switching roles, komal will have the permissions granted by the EC2FullAcc
 ![L4](https://github.com/SandeepKomal/AWS/assets/99358567/298dc282-4a8f-4b90-9ede-998f974a0f18)
 
 
-Now, komal will be using the EC2FullAccessRole and will have full access to EC2 resources as defined by the role's permissions.
+Now, sandeep_komal will be using the EC2FullAccessRole and will have full access to EC2 resources as defined by the role's permissions.
 
