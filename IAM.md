@@ -1,33 +1,9 @@
 
-# SetUp SonarQube
+# Attaching an IAM Role to Single / Multiple IAM User? Users in AWS
 
-```bash
-#!/bin/bash
+```
+Let's take a scenario where Naveen, a user with full admin-level access to an AWS account, needs to attach an IAM role to an existing IAM user, Komal, who currently has no access to resources.
 
-# Update package manager repositories
-sudo apt-get update
-
-# Install necessary dependencies
-sudo apt-get install -y ca-certificates curl
-
-# Create directory for Docker GPG key
-sudo install -m 0755 -d /etc/apt/keyrings
-
-# Download Docker's GPG key
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-
-# Ensure proper permissions for the key
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-# Add Docker repository to Apt sources
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-$(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Update package manager repositories
-sudo apt-get update
-
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 
 ```
 
 Save this script in a file, for example, `install_docker.sh`, and make it executable using:
