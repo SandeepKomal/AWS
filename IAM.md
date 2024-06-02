@@ -1,8 +1,10 @@
 
 # Attaching an IAM Role to Single / Multiple IAM User? Users in AWS
 
+### Let's take a scenario where Naveen, a user with full admin-level access to an AWS account, needs to attach an IAM role to an existing IAM user, Komal, who currently has no access to resources.
+
 ```
-Let's take a scenario where Naveen, a user with full admin-level access to an AWS account, needs to attach an IAM role to an existing IAM user, Komal, who currently has no access to resources.
+
 
 ```
 
