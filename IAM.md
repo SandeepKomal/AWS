@@ -6,7 +6,7 @@
 
 ## Step-by-Step Instructions:
 
-#### Step 1: Create an IAM Role
+### Step 1: Create an IAM Role
 ##### Sign in to the AWS Management Console as Naveen.
 ##### Navigate to the IAM service.
 ##### In the left navigation pane, choose Roles and then Create role.
@@ -17,7 +17,7 @@
 ##### Enter a Role name and description, and then choose Create role.
 
 
-#### Step 2: Modify Trust Relationship for the Role
+### Step 2: Modify Trust Relationship for the Role
 ##### Go to the newly created role and select it.
 ##### Under the Trust relationships tab, choose Edit trust relationship.
 ##### Update the trust relationship to allow the IAM user komal to assume this role. It will look something like this:
@@ -39,7 +39,7 @@
 ```
 Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In this scenario Username is komal
 
-#### Step 3: Attach a Policy to Komal to Assume the Role
+### Step 3: Attach a Policy to Komal to Assume the Role
 ##### Navigate to the IAM Users section and select the user komal.
 ##### Choose the Permissions tab and then Add inline policy.
 ###### Select the JSON tab and enter a policy that allows komal to assume the role. For example:
