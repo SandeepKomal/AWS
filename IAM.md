@@ -42,7 +42,7 @@ Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In thi
 ### Step 3: Attach a Policy to Komal to Assume the Role
 ##### Navigate to the IAM Users section and select the user komal.
 ##### Choose the Permissions tab and then Add inline policy.
-###### Select the JSON tab and enter a policy that allows komal to assume the role. For example:
+##### Select the JSON tab and enter a policy that allows komal to assume the role. For example:
 
 ```
 {
