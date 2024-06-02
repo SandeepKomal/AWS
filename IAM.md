@@ -57,4 +57,4 @@ Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In thi
 }
 
 ```
-
+Replace ACCOUNT_ID with your actual AWS account ID and ROLE_NAME with the name of the role you created
