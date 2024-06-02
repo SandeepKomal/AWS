@@ -20,8 +20,18 @@
 ![3](https://github.com/SandeepKomal/AWS/assets/99358567/9ade33e9-3637-4e92-b663-af84acf7c0bf)
 ![4](https://github.com/SandeepKomal/AWS/assets/99358567/b95e554d-cf18-49b4-ac56-596aef5e6d14)
 
+### Step 2: Create an IAM User (sandeep_komal)
+##### In the IAM service, navigate to the Users section.
+##### Click on Add user.
+###### Enter the User name (e.g., komal).
+###### Select the Access type (e.g., Programmatic access).
+##### Click Next: Permissions, then choose Attach existing policies directly.
+##### Attach the AmazonEC2ReadOnlyAccess policy for basic access (additional permissions can be added as needed),but in this case we are not attachinh it here.
+###### Click Next: Tags to add tags (optional) and then Next: Review.
+##### Review the user details and click Create user.
+###### Save the Access key ID and Secret access key for sandeep_komal.
 
-### Step 2: Modify Trust Relationship for the Role
+### Step 3: Modify Trust Relationship for the Role
 ##### Go to the newly created role and select it.
 ##### Under the Trust relationships tab, choose Edit trust relationship.
 ##### Update the trust relationship to allow the IAM user komal to assume this role. It will look something like this:
@@ -47,7 +57,7 @@
 
 Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In this scenario Username is sandeep_komal
 
-### Step 3: Attach a Policy to Komal to Assume the Role
+### Step 4: Attach a Policy to Komal to Assume the Role
 ##### Navigate to the IAM Users section and select the user komal.
 ##### Choose the Permissions tab and then Add inline policy.
 ##### Select the JSON tab and enter a policy that allows komal to assume the role. For example:
