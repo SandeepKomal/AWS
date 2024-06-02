@@ -29,7 +29,7 @@
     {
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT_ID:user/komal"
+        "AWS": "arn:aws:iam::ACCOUNT_ID:user/User"
       },
       "Action": "sts:AssumeRole"
     }
@@ -37,8 +37,7 @@
 }
 
 ```
-
-Then, you can run the script using:
+Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In this scenario Username is komal
 
 ```bash
 ./install_docker.sh
