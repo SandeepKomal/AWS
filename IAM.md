@@ -109,13 +109,15 @@ After switching roles, komal will have the permissions granted by the EC2FullAcc
 
         Go to AWS Management Console.
         Enter komal's username and password.
-  ![L1](https://github.com/SandeepKomal/AWS/assets/99358567/d2151a23-f1c2-44f2-bd99-a4c3a361636f)
+
+![L1](https://github.com/SandeepKomal/AWS/assets/99358567/3793fa2b-07ae-4731-a20e-40dcdc93e7e5)
 
         
 #### Switch Role:
 
      Click on the account name (or AWS account ID) in the upper right corner.
      Select Switch Role from the dropdown menu.
+![L2](https://github.com/SandeepKomal/AWS/assets/99358567/16f03cf2-efda-4485-8bd5-b2a04e93f5a1)
 
 
 #### Enter Role Information:
@@ -124,10 +126,13 @@ After switching roles, komal will have the permissions granted by the EC2FullAcc
   In the Role field, enter EC2FullAccessRole.
   In the Display Name field, enter a name for the session, such as EC2FullAccess.
   Optionally, choose a color for the role to help differentiate it.
+![L3](https://github.com/SandeepKomal/AWS/assets/99358567/b34bbc08-c2e8-4398-8639-863b47a037a0)
 
 #### Switch Role:
 
      Click the Switch Role button.
+![L4](https://github.com/SandeepKomal/AWS/assets/99358567/298dc282-4a8f-4b90-9ede-998f974a0f18)
+
 
 Now, komal will be using the EC2FullAccessRole and will have full access to EC2 resources as defined by the role's permissions.
 
