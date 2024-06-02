@@ -39,7 +39,22 @@
 ```
 Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In this scenario Username is komal
 
-```bash
-./install_docker.sh
+#### Step 3: Attach a Policy to Komal to Assume the Role
+##### Navigate to the IAM Users section and select the user komal.
+##### Choose the Permissions tab and then Add inline policy.
+###### Select the JSON tab and enter a policy that allows komal to assume the role. For example:
+
+```
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+    }
+  ]
+}
+
 ```
 
