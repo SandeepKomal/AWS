@@ -58,3 +58,18 @@ Replace ACCOUNT_ID with your actual AWS account ID and user with Username.In thi
 
 ```
 Replace ACCOUNT_ID with your actual AWS account ID and ROLE_NAME with the name of the role you created
+
+### Step 4: Assuming the Role
+##### Now, the komal user can assume the role with the following steps:
+
+##### Install AWS CLI (if not already installed).
+
+##### Configure AWS CLI with the komal user's credentials.
+
+##### Assume the Role using the AWS CLI:
+
+```
+aws sts assume-role --role-arn arn:aws:iam::ACCOUNT_ID:role/EC2FullAccessRole --role-session-name KomalSession
+
+```
+
