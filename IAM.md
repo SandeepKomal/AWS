@@ -73,3 +73,51 @@ aws sts assume-role --role-arn arn:aws:iam::ACCOUNT_ID:role/EC2FullAccessRole --
 
 ```
 This command will return temporary security credentials that komal can use to access EC2 resources.
+
+## OR
+
+### Step 4: Using the AWS Management Console to Assume a Role
+
+
+Using the AWS Management Console to Assume a Role
+Sign in to the AWS Management Console as the IAM user komal.
+
+Switch Role:
+
+In the top-right corner of the console, click on the account name (or the AWS account ID).
+Select Switch Role from the dropdown menu.
+Enter Role Information:
+
+Account: Enter the AWS account ID (ACCOUNT_ID).
+Role: Enter the name of the role you want to assume (EC2FullAccessRole).
+Display Name: Enter a name for the role session to display in the console (e.g., EC2FullAccess).
+Color: Optionally, select a color to help you differentiate this role in the console.
+Switch Role:
+
+Click the Switch Role button.
+After switching roles, komal will have the permissions granted by the EC2FullAccessRole, which includes full access to EC2 resources.
+
+Detailed Steps with Screenshots
+Sign In to AWS Management Console:
+
+Go to AWS Management Console.
+Enter komal's username and password.
+Switch Role:
+
+Click on the account name (or AWS account ID) in the upper right corner.
+Select Switch Role from the dropdown menu.
+
+
+Enter Role Information:
+
+In the Account field, enter your AWS account ID.
+In the Role field, enter EC2FullAccessRole.
+In the Display Name field, enter a name for the session, such as EC2FullAccess.
+Optionally, choose a color for the role to help differentiate it.
+
+
+Switch Role:
+
+Click the Switch Role button.
+Now, komal will be using the EC2FullAccessRole and will have full access to EC2 resources as defined by the role's permissions.
+
