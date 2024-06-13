@@ -107,6 +107,8 @@ stress --cpu 8 --timeout 600s
 # Generate CPU load on 2 cores for 60 seconds
 stress --cpu 2 --timeout 60s
 
+Run stress to generate memory load:
+stress --vm 2 --vm-bytes 256M --timeout 300
 
 ---------------------------------------->To decrease AWS EC2 instance CPU utilization <--------------------------
 # Find the PID of the stress process
