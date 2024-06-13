@@ -95,6 +95,18 @@ cpu specifies the number of cores, timeout specifies the number of seconds this 
 
 
 
+---------------------------------------->To increase AWS EC2 instance CPU utilization to 100% to test autoscaling group creating new instances <-------------------------------------------------------------------
+
+
+
+sudo yum update -y
+sudo yum install -y stress
+# Generate CPU load on 8 cores for 600 seconds
+stress --cpu 8 --timeout 600s
+
+# Generate CPU load on 2 cores for 60 seconds
+stress --cpu 2 --timeout 60s
+
 ----------------------------------------------> For Windows: Install Windows Server 2003 Resource Toolkit <------------------------------------------------------
 
  Then run this command in cmd:
