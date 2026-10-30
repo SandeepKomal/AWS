@@ -37,7 +37,7 @@ let total = 0;
 assert.deepStrictEqual(Object.keys(quiz).sort(), Q.levels.map((l) => l.id), "a quiz for every level and no other");
 for (const lv of Q.levels) {
   const items = quiz[lv.id];
-  assert.ok(items.length >= 4, `level ${lv.id} needs at least 4 quiz questions, has ${items.length}`);
+  assert.ok(items.length >= 6, `level ${lv.id} needs at least 6 quiz questions, has ${items.length}`);
   const seen = new Set();
   for (const item of items) {
     total++;
@@ -68,7 +68,7 @@ assert.deepStrictEqual(Q.doctorGroups.flatMap(([, g]) => g).sort(), [...ids].sor
 // The errors the scenarios print are findable in the reference.
 for (const code of ["ExpiredToken", "InvalidClientTokenId", "SignatureDoesNotMatch", "AccessDenied", "UnauthorizedOperation", "iam:PassRole", "AssumeRole", "AssumeRoleWithWebIdentity",
   "service control policy", "AccessDeniedException", "InsufficientInstanceCapacity", "VcpuLimitExceeded", "NoSuchBucket", "BucketAlreadyExists", "IllegalLocationConstraintException",
-  "502 Bad Gateway", "503 Service Temporarily Unavailable", "504 Gateway Time-out", "SERVFAIL", "ETIMEDOUT", "Task timed out", "TooManyRequestsException", "ThrottlingException", "TargetNotConnected", "Connection refused"]) {
+  "InvalidViewerCertificate", "PENDING_VALIDATION", "ResourceInitializationError", "Unauthorized", "Forbidden", "ProvisionedThroughputExceededException", "password authentication failed", "CORS policy", "ECONNREFUSED", "RequestLimitExceeded", "502 Bad Gateway", "503 Service Temporarily Unavailable", "504 Gateway Time-out", "SERVFAIL", "ETIMEDOUT", "Task timed out", "TooManyRequestsException", "ThrottlingException", "TargetNotConnected", "Connection refused"]) {
   assert.ok(Q.doctor.some((d) => d.errors.some((e) => e.includes(code))), `troubleshooting covers ${code}`);
 }
 

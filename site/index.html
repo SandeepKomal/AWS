@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <title>AWS Quest</title>
-  <meta name="description" content="Learn AWS by fixing it: a simulated account with 48 real incidents (AccessDenied, timeouts, ALB 502/503/504, public buckets, NAT costs), a policy X-ray, a troubleshooting reference for common AWS errors, quizzes and an aws CLI cheat sheet. Free, no account needed.">
+  <meta name="description" content="Learn AWS by fixing it: a simulated account with 60 real incidents (AccessDenied, timeouts, ALB 502/503/504, ECS and EKS, CloudFront certificates, public buckets, NAT costs), a policy X-ray, a troubleshooting reference for common AWS errors, quizzes and an aws CLI cheat sheet. Free, no account needed.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="AWS Quest: the cloud, without the surprise bill">
   <meta property="og:description" content="Fix real AWS incidents in a simulated account, read IAM policies in plain words, and look up what an AWS error means and how to fix it. Free and open source.">
@@ -50,9 +50,9 @@
           </div>
           <div class="stage" id="stage" aria-label="A VPC with and without a NAT gateway"></div>
           <div class="stats">
-            <div><b id="stat-scenarios">48</b><span>incidents to fix</span></div>
-            <div><b id="stat-levels">19</b><span>levels, first command to production</span></div>
-            <div><b id="stat-problems">39</b><span>AWS errors explained</span></div>
+            <div><b id="stat-scenarios">60</b><span>incidents to fix</span></div>
+            <div><b id="stat-levels">22</b><span>levels, first command to production</span></div>
+            <div><b id="stat-problems">53</b><span>AWS errors explained</span></div>
           </div>
         </div>
       </header>
@@ -133,7 +133,7 @@ aws ec2 describe-volumes --filters Name=status,Values=available</code></pre>
         <div class="guide-slot" data-guide="path"></div>
         <div class="stages" id="stages" role="list"></div>
         <div class="progress-row">
-          <div class="bar" role="progressbar" aria-label="Levels complete" aria-valuemin="0" aria-valuemax="19" id="bar"><span id="bar-fill"></span></div>
+          <div class="bar" role="progressbar" aria-label="Levels complete" aria-valuemin="0" aria-valuemax="22" id="bar"><span id="bar-fill"></span></div>
           <span id="bar-text"></span>
         </div>
         <div id="levels"></div>

@@ -8,8 +8,8 @@ This repository is built as a practical reference for cloud and DevOps engineers
 
 **[sandeepkomal.github.io/AWS](https://sandeepkomal.github.io/AWS/)** is a free site built from this repository:
 
-- **Playground**: a simulated AWS account in your browser with 48 incidents to fix using real `aws` CLI commands and real error messages: AccessDenied, explicit denies, trust policies, NAT and routing, ALB 502/503/504, public buckets, KMS key policies, IMDSv1, leaked keys, runaway costs. It never touches a real account.
-- **Path**: 19 levels from your first `aws sts get-caller-identity` to CI/CD with GitHub OIDC, each linked to the notes in this repository.
+- **Playground**: a simulated AWS account in your browser with 60 incidents to fix using real `aws` CLI commands and real error messages: AccessDenied, explicit denies, trust policies, NAT, routing and peering, ALB 502/503/504, CloudFront certificates and caching, ECS image pulls, EKS access, secret rotation, DynamoDB and SQS, CORS, public buckets, KMS key policies, IMDSv1, leaked keys, throttling and runaway costs. It never touches a real account.
+- **Path**: 22 levels from your first `aws sts get-caller-identity` to CI/CD with GitHub OIDC, each linked to the notes in this repository.
 - **Policy X-ray**: paste an IAM, trust, bucket or key policy and read every statement in plain words, with risky patterns flagged.
 - **Troubleshoot**: paste an AWS error to find what it means, how to confirm the cause, the fix and how to prevent it. Every entry is also on one plain page, [problems.html](https://sandeepkomal.github.io/AWS/problems.html).
 - **Quiz**, **cheat sheet** and an interactive **architecture** page.

@@ -13,7 +13,13 @@ window.QUEST_QUIZ = {
       why: "An AZ can fail on its own. Spreading across at least two AZs (behind a load balancer) keeps the service up when one does." },
     { q: "Which is the safest way for an engineer to use the CLI day to day?",
       options: ["Root user access keys", "An IAM user's long-lived access keys in ~/.aws/credentials", "IAM Identity Center (SSO) profiles with temporary credentials", "Keys pasted into environment variables each morning"], answer: 2,
-      why: "SSO gives short-lived credentials tied to a person, with no long-lived secret on disk to leak." }
+      why: "SSO gives short-lived credentials tied to a person, with no long-lived secret on disk to leak." },
+    { q: "You run `aws s3 ls` and get results from the wrong account. `AWS_PROFILE=prod` is set, and you passed `--profile dev`. Which credentials does the CLI use?",
+      options: ["prod, because environment variables win", "dev, because --profile comes first", "default", "It refuses to run"], answer: 1,
+      why: "The command-line option `--profile` beats `AWS_PROFILE` and the `AWS_ACCESS_KEY_ID` variables. Check with `aws configure list`." },
+    { q: "An EC2 resource exists, but `aws ec2 describe-instances` returns nothing. What is the most common cause?",
+      options: ["IAM eventual consistency", "The CLI points at a different Region", "The instance is stopped", "EC2 hides instances older than 90 days"], answer: 1,
+      why: "Most resources are regional. Pass `--region`, or check `aws configure get region` and `AWS_REGION`." }
   ],
   "01": [
     { q: "A user has `s3:GetObject` on `arn:aws:s3:::reports/*` and gets AccessDenied on `aws s3 ls s3://reports`. Why?",
@@ -27,7 +33,13 @@ window.QUEST_QUIZ = {
       why: "IAM starts from deny. Only an Allow that matches the action, resource and conditions grants access." },
     { q: "Which tool shows whether a principal's policies allow an action, without making the call?",
       options: ["`aws iam simulate-principal-policy`", "`aws iam get-account-summary`", "`aws sts get-session-token`", "`aws configure list`"], answer: 0,
-      why: "The policy simulator evaluates the principal's policies for given actions and resources and reports allowed, implicitDeny or explicitDeny." }
+      why: "The policy simulator evaluates the principal's policies for given actions and resources and reports allowed, implicitDeny or explicitDeny." },
+    { q: "Which policy element can never appear in an identity-based policy attached to a user?",
+      options: ["Condition", "Principal", "Resource", "Sid"], answer: 1,
+      why: "The principal of an identity-based policy is whoever it is attached to. IAM rejects a Principal element there; only resource policies and trust policies use it." },
+    { q: "A policy uses `arn:aws:s3:::home-bucket/${aws:username}/*`. What does it achieve?",
+      options: ["Nothing; variables are not supported", "Each user can reach only their own prefix", "All users share one prefix", "It makes the bucket public"], answer: 1,
+      why: "Policy variables are substituted at request time (Version 2012-10-17 is required), so one policy scopes every user to their own folder." }
   ],
   "02": [
     { q: "User ci-bot may call `sts:AssumeRole` on deploy-role, yet AssumeRole fails with AccessDenied. What else must allow it?",
@@ -41,7 +53,13 @@ window.QUEST_QUIZ = {
       why: "Giving a role to a service is passing the role, which needs iam:PassRole on it, ideally with an iam:PassedToService condition." },
     { q: "Why is `iam:PassRole` on `*` dangerous?",
       options: ["It is slow", "The caller can give any role, including an admin role, to code they control", "It breaks Lambda", "It disables MFA"], answer: 1,
-      why: "If someone can launch an instance with an admin role, they effectively have admin. Scope PassRole to the roles they need." }
+      why: "If someone can launch an instance with an admin role, they effectively have admin. Scope PassRole to the roles they need." },
+    { q: "A partner assumes a role in your account. Which condition protects you from the confused deputy problem?",
+      options: ["aws:SecureTransport", "sts:ExternalId", "aws:MultiFactorAuthPresent", "iam:PassedToService"], answer: 1,
+      why: "Requiring an external ID that only you and the partner know stops a third party from tricking the partner into acting on your account." },
+    { q: "How long do credentials from `sts assume-role` last by default?",
+      options: ["15 minutes", "1 hour", "12 hours", "Until revoked"], answer: 1,
+      why: "The default session is one hour; it can be set up to the role's MaxSessionDuration (up to 12 hours), or shorter with role chaining." }
   ],
   "03": [
     { q: "A user has AdministratorAccess and an inline policy that denies `ec2:StopInstances` on `*`. Can they stop an instance?",
@@ -55,7 +73,13 @@ window.QUEST_QUIZ = {
       why: "Across accounts, both sides must allow: the identity policy in A and a resource policy in B." },
     { q: "How do you make a deny protect only production instances?",
       options: ["Remove it", "Add a condition such as `StringEquals: {\"aws:ResourceTag/env\": \"prod\"}`", "Change Deny to Allow", "Put it in a group"], answer: 1,
-      why: "A condition narrows the deny to the resources it is meant for, keeping the guard rail where it matters." }
+      why: "A condition narrows the deny to the resources it is meant for, keeping the guard rail where it matters." },
+    { q: "A permissions boundary allows only S3. The user's policy allows S3 and EC2. What can the user do?",
+      options: ["S3 and EC2", "Only S3", "Only EC2", "Nothing"], answer: 1,
+      why: "A boundary caps permissions: the effective set is the intersection of the boundary and the identity policies." },
+    { q: "A bucket policy in the same account grants s3:GetObject directly to a user's ARN, and the user's identity policy says nothing about S3. Can the user read objects?",
+      options: ["No, identity policies must allow it", "Yes; in the same account a resource policy naming the principal is enough", "Only with MFA", "Only through a VPC endpoint"], answer: 1,
+      why: "Within one account, an allow in either the identity policy or a resource policy that names the principal grants access, unless something denies." }
   ],
   "04": [
     { q: "A new subnet has no explicit route table association. Which routes does it use?",
@@ -69,7 +93,13 @@ window.QUEST_QUIZ = {
       why: "Peering and Transit Gateway cannot route between overlapping ranges. Plan distinct ranges up front." },
     { q: "Which route always exists in every VPC route table and cannot be deleted?",
       options: ["0.0.0.0/0 to the internet gateway", "The local route for the VPC CIDR", "A route to S3", "A route to the NAT gateway"], answer: 1,
-      why: "The local route lets everything in the VPC reach everything else (subject to security groups and NACLs)." }
+      why: "The local route lets everything in the VPC reach everything else (subject to security groups and NACLs)." },
+    { q: "Two VPCs are peered, and your route table points at the peering, yet connections time out. What is most often missing?",
+      options: ["An internet gateway", "A route back from the other VPC to yours", "A NAT gateway", "A larger instance"], answer: 1,
+      why: "Peering needs routes on both sides. Replies are dropped if the other VPC has no route to your CIDR through the peering." },
+    { q: "Why can't you peer 10.0.0.0/16 with another VPC that is also 10.0.0.0/16?",
+      options: ["Peering only works across Regions", "Overlapping CIDRs cannot be routed between", "Peering needs IPv6", "It is allowed with a NAT gateway"], answer: 1,
+      why: "A route table cannot tell which side an address belongs to when ranges overlap, so AWS refuses the peering. Plan distinct ranges." }
   ],
   "05": [
     { q: "Instances in a private subnet must download updates from the internet but must not be reachable from it. What do you use?",
@@ -83,7 +113,13 @@ window.QUEST_QUIZ = {
       why: "Without a public IPv4 address the internet cannot address the instance. An Elastic IP gives a stable one." },
     { q: "Which of these is billed even when idle?",
       options: ["An internet gateway", "A public IPv4 address (in use or not)", "A route table", "A security group"], answer: 1,
-      why: "Since February 2024 AWS charges for every public IPv4 address per hour. Internet gateways, route tables and security groups are free." }
+      why: "Since February 2024 AWS charges for every public IPv4 address per hour. Internet gateways, route tables and security groups are free." },
+    { q: "Your private subnets download several TB a month from S3 through a NAT gateway. What removes most of that charge?",
+      options: ["A second NAT gateway", "A gateway VPC endpoint for S3", "Public IPs on the instances", "A bigger NAT gateway"], answer: 1,
+      why: "Gateway endpoints for S3 and DynamoDB are free and route that traffic privately, off the NAT gateway's per-GB charge." },
+    { q: "For high availability, how many NAT gateways should a two-AZ VPC have?",
+      options: ["One shared", "One per AZ, each private subnet routing to the one in its AZ", "None", "One per subnet"], answer: 1,
+      why: "A NAT gateway lives in one AZ. If that AZ fails, private subnets elsewhere lose internet access unless each AZ has its own." }
   ],
   "06": [
     { q: "curl to your instance times out. A different port gives `Connection refused`. What does the refusal tell you?",
@@ -97,7 +133,13 @@ window.QUEST_QUIZ = {
       why: "Referencing the security group follows the instances wherever they are and lets nothing else in." },
     { q: "Port 22 is open to 0.0.0.0/0 on a bastion and GuardDuty reports brute force. What is the best change?",
       options: ["Move SSH to port 2222", "Close port 22 and use Session Manager", "Add a NACL deny for one attacker IP", "Use a bigger instance"], answer: 1,
-      why: "Session Manager needs no inbound port and logs sessions. Another port only slows scanners." }
+      why: "Session Manager needs no inbound port and logs sessions. Another port only slows scanners." },
+    { q: "A security group has no outbound rules at all. What happens to replies to inbound connections it allowed?",
+      options: ["They are dropped", "They still go out, because security groups are stateful", "Only TCP replies go out", "Only within the VPC"], answer: 1,
+      why: "Security groups track connections, so replies to allowed traffic are always allowed. Outbound rules matter only for new connections the instance starts." },
+    { q: "A network ACL has rule 100 allowing port 22 from anywhere and rule 90 denying 198.51.100.0/24. What happens to SSH from 198.51.100.9?",
+      options: ["Allowed by rule 100", "Denied by rule 90, which is evaluated first", "Allowed, because allows beat denies", "It depends on the security group only"], answer: 1,
+      why: "NACL rules are evaluated in ascending number order and the first match wins." }
   ],
   "07": [
     { q: "An instance shows 1/2 status checks: the system check failed. What fixes it most reliably?",
@@ -111,7 +153,13 @@ window.QUEST_QUIZ = {
       why: "The On-Demand quota counts vCPUs of running instances of the standard families (A, C, D, H, I, M, R, T, Z) per Region." },
     { q: "An instance without an Elastic IP is stopped and started. What changes?",
       options: ["Nothing", "Its auto-assigned public IP changes", "Its private IP changes", "Its instance ID changes"], answer: 1,
-      why: "Auto-assigned public IPs are released on stop. Private IPs and IDs stay; DNS pointing at the old public IP breaks." }
+      why: "Auto-assigned public IPs are released on stop. Private IPs and IDs stay; DNS pointing at the old public IP breaks." },
+    { q: "What does EC2 user data do by default on Amazon Linux?",
+      options: ["Runs at every boot", "Runs once, at first boot, as root", "Runs as ec2-user on login", "Never runs unless SSM is installed"], answer: 1,
+      why: "cloud-init runs user data once on the first boot. Re-running it needs a different configuration." },
+    { q: "Which tool gives a shell on a private instance without SSH keys or open ports?",
+      options: ["EC2 Serial Console only", "Systems Manager Session Manager", "A bastion host", "AWS Config"], answer: 1,
+      why: "Session Manager uses the SSM agent and the instance role, logs sessions, and needs no inbound port." }
   ],
   "08": [
     { q: "Terminated instances left 1.6 TB of volumes behind. Why?",
@@ -125,7 +173,13 @@ window.QUEST_QUIZ = {
       why: "gp3 costs about 20% less per GB than gp2 and gives 3,000 IOPS and 125 MB/s regardless of size." },
     { q: "What is the best way to keep snapshot costs under control?",
       options: ["Delete them by hand each year", "Data Lifecycle Manager or AWS Backup policies that expire them", "Never take snapshots", "Copy them to another Region"], answer: 1,
-      why: "Lifecycle policies create and expire snapshots on a schedule, so nothing accumulates unnoticed." }
+      why: "Lifecycle policies create and expire snapshots on a schedule, so nothing accumulates unnoticed." },
+    { q: "You want a snapshot copy that survives the loss of the Region. What do you do?",
+      options: ["Nothing; snapshots are global", "Copy the snapshot to another Region", "Enable Multi-Attach", "Take more snapshots"], answer: 1,
+      why: "Snapshots are stored regionally. `aws ec2 copy-snapshot` (or AWS Backup cross-Region copies) protects against a Region outage." },
+    { q: "A gp2 volume of 100 GB is slow under load. What does gp3 change?",
+      options: ["Nothing", "gp3 gives 3,000 IOPS and 125 MB/s baseline regardless of size, and costs less", "gp3 is only for boot volumes", "gp3 needs a bigger instance"], answer: 1,
+      why: "gp2 performance grows with size (3 IOPS per GB); gp3 decouples performance from size and is cheaper per GB." }
   ],
   "09": [
     { q: "A bucket policy has `\"Principal\": \"*\"` with `s3:GetObject`. What stops anonymous access most reliably, without touching the app's IAM role?",
@@ -139,7 +193,13 @@ window.QUEST_QUIZ = {
       why: "A delete in a versioned bucket adds a delete marker. Remove it and the previous version is current again." },
     { q: "Versioning keeps every overwritten backup and storage grows forever. Which lifecycle action fixes it?",
       options: ["Expiration on current versions", "NoncurrentVersionExpiration", "Suspending versioning", "Transition to Glacier only"], answer: 1,
-      why: "NoncurrentVersionExpiration deletes old versions after N days. Expiration acts on current objects; suspending keeps old versions." }
+      why: "NoncurrentVersionExpiration deletes old versions after N days. Expiration acts on current objects; suspending keeps old versions." },
+    { q: "A browser app reading from S3 shows `No 'Access-Control-Allow-Origin' header is present`. What do you change?",
+      options: ["Make the bucket public", "Add a CORS rule allowing the site's origin and method", "Disable Block Public Access", "Enable versioning"], answer: 1,
+      why: "CORS tells browsers which other origins may read the response. Permission to the object is a separate question." },
+    { q: "Which S3 setting stops anyone from adding a public bucket policy in the first place?",
+      options: ["IgnorePublicAcls", "BlockPublicPolicy", "Object Lock", "Default encryption"], answer: 1,
+      why: "BlockPublicPolicy rejects PutBucketPolicy calls that would make the bucket public; RestrictPublicBuckets neutralises existing public policies." }
   ],
   "10": [
     { q: "An ALB returns 503 right after a listener was switched to a new target group. Most likely cause?",
@@ -153,7 +213,13 @@ window.QUEST_QUIZ = {
       why: "Timeouts between an ALB and its targets are usually a security group or NACL dropping the traffic." },
     { q: "Scale-out alarms fire but the Auto Scaling group stays at 2. `MaxSize` is 2. Fix?",
       options: ["set-desired-capacity 4", "Raise MaxSize", "Delete the alarm", "Reboot the instances"], answer: 1,
-      why: "Policies move the desired capacity only between MinSize and MaxSize; set-desired-capacity above max is rejected." }
+      why: "Policies move the desired capacity only between MinSize and MaxSize; set-desired-capacity above max is rejected." },
+    { q: "Every target is unhealthy, yet the site still answers. Why?",
+      options: ["Health checks are cached", "An ALB fails open: with no healthy targets it routes to all of them", "Route 53 bypasses the ALB", "Auto Scaling serves the traffic"], answer: 1,
+      why: "When no target is healthy, the ALB tries them all rather than serving nothing. Fix the health check before it hides a real outage." },
+    { q: "Which health check type should an Auto Scaling group behind an ALB use so broken apps are replaced?",
+      options: ["EC2", "ELB", "None", "Route 53"], answer: 1,
+      why: "With ELB health checks, an instance that fails the target group's check is replaced, not only one whose VM fails." }
   ],
   "11": [
     { q: "A Lambda function in the VPC gets `connect ETIMEDOUT` to RDS; web servers connect fine. What is the fix?",
@@ -167,7 +233,13 @@ window.QUEST_QUIZ = {
       why: "Only more storage frees the writes; storage autoscaling (MaxAllocatedStorage) prevents the next incident." },
     { q: "Which setting enables point-in-time recovery?",
       options: ["A manual snapshot", "BackupRetentionPeriod above 0 (automated backups)", "Multi-AZ", "Deletion protection"], answer: 1,
-      why: "Automated backups plus transaction logs allow restore to any second within the retention period." }
+      why: "Automated backups plus transaction logs allow restore to any second within the retention period." },
+    { q: "An app gets `Connection refused` from RDS. What does that rule out?",
+      options: ["A wrong port", "A security group dropping the traffic", "A stopped database", "A wrong host"], answer: 1,
+      why: "Refused means the packet reached the host and nothing listened. Security groups drop silently, which shows as a timeout." },
+    { q: "What does Multi-AZ give an RDS database?",
+      options: ["Read scaling", "A standby in another AZ with automatic failover", "Cross-Region backups", "Lower cost"], answer: 1,
+      why: "Multi-AZ keeps a synchronous standby and fails over the endpoint automatically. Read replicas are for read scaling." }
   ],
   "12": [
     { q: "How should shop.example.com point at an Application Load Balancer?",
@@ -181,7 +253,13 @@ window.QUEST_QUIZ = {
       why: "DNS forbids CNAMEs at the apex. Route 53 alias records solve this." },
     { q: "You changed a record but some users still reach the old address for a while. What explains it?",
       options: ["Route 53 is slow to save", "Resolvers cache the old answer for its TTL", "The change failed", "Browsers ignore DNS"], answer: 1,
-      why: "Caches keep answers for the TTL. Lower the TTL ahead of planned changes." }
+      why: "Caches keep answers for the TTL. Lower the TTL ahead of planned changes." },
+    { q: "Which record type lets example.com (the zone apex) point at a CloudFront distribution?",
+      options: ["CNAME", "Alias A (and AAAA) record", "MX", "PTR"], answer: 1,
+      why: "CNAMEs are not allowed at the apex. Route 53 alias records can point at CloudFront, ALBs and S3 websites, at the apex too." },
+    { q: "ACM keeps a DNS-validated certificate renewed automatically as long as:",
+      options: ["You renew it yearly", "The validation CNAME record stays in DNS", "The certificate is unused", "You use email validation"], answer: 1,
+      why: "ACM checks the same CNAME for renewal. Deleting it means the certificate expires." }
   ],
   "13": [
     { q: "A function calls an API that takes 7 seconds and fails with `Task timed out after 3.00 seconds`. Fix?",
@@ -195,7 +273,13 @@ window.QUEST_QUIZ = {
       why: "Lambda network interfaces in a VPC never get public IPs; outbound internet goes through NAT." },
     { q: "Where do you read a function's error output fastest from the CLI?",
       options: ["`aws lambda get-function`", "`aws logs tail /aws/lambda/<function> --since 1h`", "`aws cloudtrail lookup-events`", "`aws s3 ls`"], answer: 1,
-      why: "Function output and errors go to its CloudWatch Logs group; `logs tail` shows them directly." }
+      why: "Function output and errors go to its CloudWatch Logs group; `logs tail` shows them directly." },
+    { q: "A Lambda function in a VPC must read from S3, and the subnets have no NAT. What is the cheapest path?",
+      options: ["Move it out of the VPC", "A gateway VPC endpoint for S3", "A NAT gateway", "A public IP"], answer: 1,
+      why: "A gateway endpoint gives private, free access to S3 from the subnets' route tables." },
+    { q: "What does provisioned concurrency solve?",
+      options: ["Throttling at the account limit", "Cold start latency, by keeping environments initialised", "Timeouts", "Memory errors"], answer: 1,
+      why: "Provisioned concurrency pre-warms execution environments. Throttling is about reserved and account concurrency." }
   ],
   "14": [
     { q: "An alarm has said INSUFFICIENT_DATA for weeks. What is the most likely cause?",
@@ -209,7 +293,13 @@ window.QUEST_QUIZ = {
       why: "Management events stay in CloudTrail's event history for 90 days, even while a trail is stopped." },
     { q: "How do you stop anyone in member accounts from disabling CloudTrail?",
       options: ["Tell them not to", "An SCP that denies cloudtrail:StopLogging and cloudtrail:DeleteTrail", "Enable MFA", "Use a bigger bucket"], answer: 1,
-      why: "An SCP's explicit deny applies to every principal in the account, administrators included." }
+      why: "An SCP's explicit deny applies to every principal in the account, administrators included." },
+    { q: "A script fails with `RequestLimitExceeded (reached max retries: 4)`. Which client setting helps most?",
+      options: ["`--output text`", "`retry_mode = adaptive` with more `max_attempts`", "A different Region", "`--no-paginate`"], answer: 1,
+      why: "Adaptive retries back off and rate-limit the client when it sees throttling. Cutting parallelism helps too." },
+    { q: "Where can you see who called an API in the last 90 days without any trail configured?",
+      options: ["CloudWatch Logs", "CloudTrail event history (lookup-events)", "VPC Flow Logs", "AWS Config"], answer: 1,
+      why: "CloudTrail keeps 90 days of management events per Region for free. Trails are needed for longer retention, data events and delivery to S3." }
   ],
   "15": [
     { q: "A role has `kms:Decrypt` in its IAM policy but gets AccessDeniedException from KMS. Why?",
@@ -223,7 +313,13 @@ window.QUEST_QUIZ = {
       why: "KMS returns MalformedPolicyDocumentException so you cannot lock everyone out of the key by mistake." },
     { q: "What does `kms:ViaService` in a key policy condition do?",
       options: ["Encrypts faster", "Limits use of the key to requests that come through a named service, such as S3", "Disables the key", "Rotates the key"], answer: 1,
-      why: "It lets a principal use the key only through, for example, s3.us-east-1.amazonaws.com, not directly." }
+      why: "It lets a principal use the key only through, for example, s3.us-east-1.amazonaws.com, not directly." },
+    { q: "What does a KMS key policy statement with principal `arn:aws:iam::111122223333:root` and `kms:*` do?",
+      options: ["Gives the root user only", "Lets the account's IAM policies grant access to the key", "Makes the key public", "Nothing"], answer: 1,
+      why: "It delegates to IAM: any principal in the account whose IAM policy allows the KMS action can use the key." },
+    { q: "How long must you wait before a scheduled KMS key deletion happens?",
+      options: ["Immediately", "7 to 30 days", "1 year", "Keys cannot be deleted"], answer: 1,
+      why: "Key deletion has a waiting period of 7 to 30 days, because data encrypted under the key becomes unrecoverable." }
   ],
   "16": [
     { q: "CloudTrail shows API calls by the root user from a deploy script. What do you do first?",
@@ -237,7 +333,13 @@ window.QUEST_QUIZ = {
       why: "Typical SSRF can make only simple GET requests. IMDSv2's token step defeats them; the app's SDK handles it automatically." },
     { q: "Why not disable the instance metadata endpoint entirely to stop SSRF?",
       options: ["It costs money", "The app would lose its role credentials", "It is not allowed", "It slows boot"], answer: 1,
-      why: "The SDK fetches role credentials from IMDS. Require tokens instead of turning it off." }
+      why: "The SDK fetches role credentials from IMDS. Require tokens instead of turning it off." },
+    { q: "An app should use a database password from Secrets Manager with rotation on. Where should the app get the password?",
+      options: ["An environment variable set at deploy", "From Secrets Manager at run time, cached briefly", "Hard-coded in the image", "From a teammate"], answer: 1,
+      why: "Rotation updates the secret and the database together; copies elsewhere go stale." },
+    { q: "GuardDuty reports `UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS`. What happened?",
+      options: ["An access key was rotated", "An instance role's credentials were used from outside AWS", "MFA was disabled", "A bucket became public"], answer: 1,
+      why: "Instance credentials leaving AWS usually means SSRF or a compromised host. Require IMDSv2 and revoke the role's sessions." }
   ],
   "17": [
     { q: "Private servers copy 4 TB a month to S3 and the NAT gateway bill is large. Cheapest fix?",
@@ -251,7 +353,13 @@ window.QUEST_QUIZ = {
       why: "The default retention is never expire. Set retention per policy; export to S3 for cheap long-term keeping." },
     { q: "Where in Cost Explorer do NAT gateway data and EBS volumes appear?",
       options: ["Amazon VPC", "EC2 - Other", "AWS Support", "Amazon S3"], answer: 1,
-      why: "NAT gateway, EBS volumes and snapshots are billed under EC2 - Other. Group by usage type to see which." }
+      why: "NAT gateway, EBS volumes and snapshots are billed under EC2 - Other. Group by usage type to see which." },
+    { q: "What is the first thing to set up in a new account to avoid a surprise bill?",
+      options: ["Reserved Instances", "AWS Budgets with an alert", "A NAT gateway", "Savings Plans"], answer: 1,
+      why: "A budget alert tells you when spend crosses a threshold, before the month ends." },
+    { q: "A versioned bucket's storage keeps growing though current objects do not. Fix?",
+      options: ["Suspend versioning", "A lifecycle rule with NoncurrentVersionExpiration", "Delete the bucket", "Enable Intelligent-Tiering only"], answer: 1,
+      why: "Old versions are billed until a lifecycle rule expires them; suspending versioning keeps the existing ones." }
   ],
   "18": [
     { q: "A GitHub Actions workflow fails: `Not authorized to perform sts:AssumeRoleWithWebIdentity`. The repository was just renamed. Fix?",
@@ -265,6 +373,72 @@ window.QUEST_QUIZ = {
       why: "A change set lists the planned changes, including replacements that would recreate resources." },
     { q: "The repository's ec2_cft.yaml opens several ports to 0.0.0.0/0. What should a review ask for?",
       options: ["Nothing; templates are examples", "Restrict sources to what needs them, and parameterise IDs and CIDRs", "Delete the template", "Open all ports"], answer: 1,
-      why: "Templates become production. Least-privilege networking and no hard-coded environment IDs belong in review." }
+      why: "Templates become production. Least-privilege networking and no hard-coded environment IDs belong in review." },
+    { q: "A stack update would replace your database. Where do you see this before it happens?",
+      options: ["CloudTrail", "A change set (Replacement: True)", "Stack events after the update", "AWS Config"], answer: 1,
+      why: "Change sets show each resource's planned action and whether it is replaced." },
+    { q: "Which GitHub Actions setting is required for OIDC to AWS?",
+      options: ["`permissions: contents: write`", "`permissions: id-token: write`", "A stored AWS secret key", "`runs-on: aws`"], answer: 1,
+      why: "The workflow needs id-token: write to request the OIDC token that aws-actions/configure-aws-credentials exchanges for role credentials." }
+  ],
+  "19": [
+    { q: "A Fargate task stops with `AccessDeniedException ... ecr:GetAuthorizationToken`. Which role needs the permission?",
+      options: ["The task role", "The task execution role", "The service-linked role", "The EC2 instance role"], answer: 1,
+      why: "The execution role is what ECS uses to pull images, fetch secrets and write logs. The task role is for your application's own calls." },
+    { q: "Fargate tasks in private subnets with no NAT fail to pull from ECR. Which endpoints fix it?",
+      options: ["Only ecr.api", "ecr.api and ecr.dkr interface endpoints, plus an S3 gateway endpoint", "Only an S3 gateway endpoint", "An internet gateway route"], answer: 1,
+      why: "The registry API and Docker endpoints serve auth and manifests; the image layers come from S3." },
+    { q: "Where do you read why an ECS task stopped?",
+      options: ["CloudTrail", "`stoppedReason` in `aws ecs describe-tasks`", "The service's CPU metric", "Route 53"], answer: 1,
+      why: "Stopped tasks keep their stop code and reason for about an hour; describe-tasks shows them." },
+    { q: "`kubectl` says `error: You must be logged in to the server (Unauthorized)`. What does it mean?",
+      options: ["RBAC denied a verb", "The cluster did not map your IAM identity to any Kubernetes user", "The cluster is down", "kubectl is too old"], answer: 1,
+      why: "Unauthorized is authentication: no access entry or aws-auth mapping for you. Forbidden is authorisation." },
+    { q: "The IAM role that created an EKS cluster was deleted and nobody can use kubectl. How do admins regain access?",
+      options: ["Recreate the cluster", "Create an access entry for an admin role through the EKS API", "Edit aws-auth with kubectl", "Ask AWS Support only"], answer: 1,
+      why: "Access entries are managed with IAM permissions through the EKS API, so they work even when nobody can reach the cluster." },
+    { q: "Which EKS access policy suits on-call engineers who must look but not change?",
+      options: ["AmazonEKSClusterAdminPolicy", "AmazonEKSViewPolicy", "AmazonEKSEditPolicy", "AdministratorAccess"], answer: 1,
+      why: "The view policy grants read access to most resources without changing anything; IAM AdministratorAccess grants nothing inside the cluster." }
+  ],
+  "20": [
+    { q: "A DynamoDB table has 5 WCU and receives 40 writes a second. What happens?",
+      options: ["DynamoDB scales automatically", "Writes are throttled with ProvisionedThroughputExceededException", "Writes queue for later", "Reads slow down"], answer: 1,
+      why: "Provisioned tables throttle beyond their capacity (after any burst credit). Use on-demand or auto scaling." },
+    { q: "When is on-demand capacity a better fit than provisioned?",
+      options: ["Steady, predictable traffic", "Spiky or unknown traffic", "Never", "Only for reads"], answer: 1,
+      why: "On-demand charges per request and absorbs spikes; provisioned with auto scaling is cheaper for steady load." },
+    { q: "An SQS consumer takes 90 seconds per message; visibility timeout is 30. What happens?",
+      options: ["Messages are lost", "Messages reappear and are processed more than once", "The queue blocks", "Nothing"], answer: 1,
+      why: "After 30 seconds the message is visible again and another receive gets it. Raise the timeout above processing time." },
+    { q: "Why must SQS consumers be idempotent even with the right visibility timeout?",
+      options: ["They need not be", "Standard queues deliver at least once", "SQS reorders messages", "Visibility timeouts are approximate"], answer: 1,
+      why: "Standard queues may deliver a message more than once. FIFO queues offer exactly-once processing within a deduplication window." },
+    { q: "Secret rotation succeeded, yet the app fails to log in. Most likely cause?",
+      options: ["Rotation is broken", "The app holds an old copy of the password", "KMS is down", "The database restarted"], answer: 1,
+      why: "Rotation updates the secret and the database only. Apps must read the secret at run time." },
+    { q: "What resource ARN does a policy need to read one Secrets Manager secret?",
+      options: ["The secret's name", "The secret's ARN, which ends in a random six-character suffix", "`*` always", "The KMS key ARN only"], answer: 1,
+      why: "Secret ARNs have a random suffix; use the full ARN or name-with-wildcard such as secret:prod/orders/db-??????." }
+  ],
+  "21": [
+    { q: "In which Region must an ACM certificate for CloudFront be?",
+      options: ["The origin's Region", "us-east-1", "Any Region", "eu-west-1"], answer: 1,
+      why: "CloudFront is global and reads certificates from ACM in us-east-1 only." },
+    { q: "An ACM certificate stays PENDING_VALIDATION. What is missing?",
+      options: ["A payment", "The validation CNAME record in the domain's DNS", "A CloudFront distribution", "An email address"], answer: 1,
+      why: "DNS validation completes when ACM sees the exact CNAME from DomainValidationOptions." },
+    { q: "After a deploy, CloudFront still serves the old index.html. Fastest fix?",
+      options: ["Upload it again", "Create an invalidation for /index.html", "Delete the distribution", "Lower the origin's TTL"], answer: 1,
+      why: "Edges keep cached copies until TTL expiry or invalidation. Re-uploading does not touch the cache." },
+    { q: "How do you avoid invalidations for JavaScript and CSS on every release?",
+      options: ["Disable caching", "Use content-hashed file names with long TTLs", "Use a bigger price class", "Invalidate /* hourly"], answer: 1,
+      why: "A new file name is a new cache key, so assets can be cached for a year while index.html stays short-lived." },
+    { q: "Why does `aws cloudfront update-distribution` need `--if-match`?",
+      options: ["It is optional", "It carries the ETag from get-distribution-config to prevent overwriting someone else's change", "It selects the Region", "It enables HTTPS"], answer: 1,
+      why: "CloudFront uses optimistic locking: an update must name the version it was based on." },
+    { q: "curl reports `no alternative certificate subject name matches target host name 'www.example.com'` for a CloudFront site. Likely cause?",
+      options: ["DNS is down", "The distribution uses a certificate that does not cover www.example.com", "The origin is private", "TLS 1.3 is disabled"], answer: 1,
+      why: "Usually the default *.cloudfront.net certificate is attached, or the alias is missing from the ACM certificate." }
   ]
 };

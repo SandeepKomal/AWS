@@ -463,7 +463,8 @@
     blog: { ports: [80, 22], paths: { "/": [200, "<!doctype html><title>Kitchen notes</title><h1>Kitchen notes</h1>"] } },
     worker: { ports: [22], paths: {} },
     batch: { ports: [22], paths: {} },
-    bastion: { ports: [22], paths: {} }
+    bastion: { ports: [22], paths: {} },
+    pgsql: { ports: [5432], paths: {} }
   };
   const ALB_PAGE = (code, text) => `<html>\n<head><title>${code} ${text}</title></head>\n<body>\n<center><h1>${code} ${text}</h1></center>\n</body>\n</html>`;
   const S3_ERR = (code, msg, extra = "") => `<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>${code}</Code><Message>${msg}</Message>${extra}<RequestId>${hexOf(code + msg, 16).toUpperCase()}</RequestId><HostId>${blob(code, 40)}=</HostId></Error>`;
@@ -566,6 +567,14 @@
       this.quotas = { "L-1216C47A": 64 };
       this.capacityOut = [];
       this.traffic = { internetGb: 120, s3Gb: 40 };
+      this.certs = [];
+      this.dists = [];
+      this.ecs = { services: [], taskDefs: {}, deploys: 0 };
+      this.eks = null;
+      this.secrets = [];
+      this.tables = [];
+      this.queues = [];
+      this.peerings = [];
     }
 
     // --- builders, also used by scenarios ---
@@ -761,6 +770,8 @@
         if (!this.sgAllows(dst.sgs, "in", port, src)) return "timeout";
       } else {
         if (!this.sgAllows(src.sgs, "out", port, dst) || !this.sgAllows(dst.sgs, "in", port, src)) return "timeout";
+        const vs = this.sub(src.subnet).vpc, vd = this.sub(dst.subnet).vpc;
+        if (vs !== vd && !(this.peered(src.subnet, dst.ip, vs, vd) && this.peered(dst.subnet, src.ip, vd, vs))) return "timeout";
         if (src.subnet !== dst.subnet && !(this.naclAllows(src.subnet, true, port, dst.ip) && this.naclAllows(dst.subnet, false, port, src.ip) &&
           this.naclAllows(dst.subnet, true, EPHEMERAL, src.ip) && this.naclAllows(src.subnet, false, EPHEMERAL, dst.ip))) return "timeout";
       }
@@ -779,6 +790,11 @@
         return Boolean(nat && nat.state === "available" && this.hasInternetRoute(nat.subnet));
       }
       return false;
+    }
+    // Across VPCs only through an active peering connection, routed both ways.
+    peered(subnetId, ip, from, to) {
+      const r = this.routeFor(subnetId, ip);
+      return Boolean(r && r.target.startsWith("pcx-") && this.peerings.some((p) => p.id === r.target && p.status === "active" && [p.a, p.b].sort().join() === [from, to].sort().join()));
     }
     natPath(subnetId) {
       const r = this.routeFor(subnetId, "8.8.8.8");
@@ -827,6 +843,8 @@
       if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return { ip: host };
       if (EXTERNAL[host]) return { ip: EXTERNAL[host] };
       if (/(^|\.)s3([.-][a-z0-9-]+)?\.amazonaws\.com$/.test(host)) return { ip: S3_IP, s3: host.split(".s3")[0] };
+      const cf = this.dists.find((x) => x.domain === host);
+      if (cf) return { ip: CF_IP, cf };
       const alb = this.albs.find((x) => x.dns === host || `dualstack.${x.dns}` === host);
       if (alb) return { ip: alb.ips[0], alb };
       const db = this.dbs.find((d) => this.dbHost(d) === host);
@@ -944,6 +962,17 @@
         if (i.state === "stopped" || i.state === "terminated") i.publicIp = null;
       }
       for (const t of this.tgs) for (const x of t.targets) delete x.fresh;
+      for (const c of this.certs.filter((x) => x.status === "PENDING_VALIDATION")) {
+        if (this.zones.some((z) => z.records.some((r) => r.Type === "CNAME" && fqdn(r.Name) === c.validation.Name && fqdn((r.ResourceRecords || [])[0] ? r.ResourceRecords[0].Value : "") === c.validation.Value))) c.status = "ISSUED";
+      }
+      for (const d of this.dists) {
+        if (d.status === "InProgress") d.status = "Deployed";
+        for (const inv of d.invalidations.filter((i) => i.status === "InProgress")) {
+          inv.status = "Completed";
+          for (const key of Object.keys(d.cache)) if (inv.paths.some((p) => (p.endsWith("*") ? key.startsWith(p.slice(0, -1)) : key === p))) delete d.cache[key];
+        }
+      }
+      for (const t of this.tables) if (t.status === "UPDATING") t.status = "ACTIVE";
       for (const d of this.dbs) {
         if (["modifying", "rebooting", "backing-up", "upgrading"].includes(d.status)) d.status = d.freeGb <= 0 ? "storage-full" : "available";
       }
@@ -1036,7 +1065,7 @@
     "names", "target-group-arns", "network-acl-ids", "vpc-security-group-ids", "tag-specifications"]);
   const PREFIX = { ec2: "ec2", s3api: "s3", s3: "s3", s3control: "s3", iam: "iam", sts: "sts", elbv2: "elasticloadbalancing", autoscaling: "autoscaling", cloudwatch: "cloudwatch", logs: "logs",
     lambda: "lambda", rds: "rds", route53: "route53", route53domains: "route53domains", kms: "kms", cloudtrail: "cloudtrail", guardduty: "guardduty", "service-quotas": "servicequotas",
-    ce: "ce", ssm: "ssm", sns: "sns", organizations: "organizations" };
+    ce: "ce", ssm: "ssm", sns: "sns", organizations: "organizations", cloudfront: "cloudfront", acm: "acm", ecs: "ecs", eks: "eks", secretsmanager: "secretsmanager", dynamodb: "dynamodb", sqs: "sqs" };
   // Error codes differ by service for the same denial.
   const DENY_CODE = { iam: "AccessDenied", sts: "AccessDenied", s3: "AccessDenied", elasticloadbalancing: "AccessDenied", autoscaling: "AccessDenied", cloudwatch: "AccessDenied", rds: "AccessDenied", route53: "AccessDenied", sns: "AuthorizationError" };
 
@@ -1262,7 +1291,8 @@
       const p = c.a.profiles[name] || (c.a.profiles[name] = {});
       if (k === "aws_access_key_id") { delete p.sso; p.key = v; }
       else if (k === "aws_secret_access_key") p.secret = v;
-      else if (k !== "region" && k !== "output") throw new ArgError(`(The playground stores aws_access_key_id, aws_secret_access_key, region and output.)`);
+      else if (k === "retry_mode" || k === "max_attempts") p[k] = v;
+      else if (k !== "region" && k !== "output") throw new ArgError(`(The playground stores aws_access_key_id, aws_secret_access_key, region, output, retry_mode and max_attempts.)`);
     } }
   };
   const SSO = {
@@ -1596,7 +1626,7 @@
       Routes: r.routes.map((x) => {
         const nat = x.target.startsWith("nat-") ? a.nats.find((n) => n.id === x.target) : null;
         const black = (x.target.startsWith("igw-") && !a.igwUp(x.target)) || (x.target.startsWith("nat-") && (!nat || nat.state === "deleted" || nat.state === "deleting"));
-        return { ...(x.dest.startsWith("pl-") ? { DestinationPrefixListId: x.dest } : { DestinationCidrBlock: x.dest }), ...(x.target.startsWith("nat-") ? { NatGatewayId: x.target } : { GatewayId: x.target }),
+        return { ...(x.dest.startsWith("pl-") ? { DestinationPrefixListId: x.dest } : { DestinationCidrBlock: x.dest }), ...(x.target.startsWith("nat-") ? { NatGatewayId: x.target } : x.target.startsWith("pcx-") ? { VpcPeeringConnectionId: x.target } : { GatewayId: x.target }),
           Origin: x.target === "local" ? "CreateRouteTable" : x.target.startsWith("vpce-") ? "CreateRoute" : "CreateRoute", State: black ? "blackhole" : "active" };
       }), Tags: nameTag(r.name), VpcId: r.vpc, OwnerId: ACCOUNT };
   }
@@ -1606,7 +1636,8 @@
     return r;
   }
   function routeTarget(c) {
-    const t = c.opt("gateway-id") || c.opt("nat-gateway-id");
+    const t = c.opt("gateway-id") || c.opt("nat-gateway-id") || c.opt("vpc-peering-connection-id");
+    if (t && t.startsWith("pcx-")) { if (!c.a.peerings.some((x) => x.id === t)) throw new AwsError("InvalidVpcPeeringConnectionID.NotFound", `The vpcPeeringConnection ID '${t}' does not exist`); return t; }
     if (!t) throw new AwsError("MissingParameter", "The request must contain exactly one of gatewayId, natGatewayId, networkInterfaceId, vpcPeeringConnectionId or instanceId");
     if (t.startsWith("igw-") && !c.a.igws.some((g) => g.id === t)) throw new AwsError("InvalidGatewayID.NotFound", `The gateway ID '${t}' does not exist`);
     if (t.startsWith("nat-") && !c.a.nats.some((n) => n.id === t && n.state !== "deleted")) throw new AwsError("InvalidNatGatewayID.NotFound", `The natGateway ID '${t}' does not exist`);
@@ -1889,6 +1920,11 @@
       return { VpcEndpoint: { VpcEndpointId: id, VpcEndpointType: type, VpcId: c.opt("vpc-id"), ServiceName: svc, State: type === "Gateway" ? "available" : "pending", RouteTableIds: rts,
         PolicyDocument: type === "Gateway" ? JSON.stringify(doc({ Effect: "Allow", Principal: "*", Action: "*", Resource: "*" })) : undefined, CreationTimestamp: ts3(c.a.now), OwnerId: ACCOUNT } };
     } },
+    "describe-vpc-peering-connections": (c) => ({ VpcPeeringConnections: c.a.peerings.map((p) => {
+      const v = (id) => c.a.vpcs.find((x) => x.id === id);
+      return { AccepterVpcInfo: { CidrBlock: v(p.b).cidr, OwnerId: ACCOUNT, VpcId: p.b, Region: REGION }, RequesterVpcInfo: { CidrBlock: v(p.a).cidr, OwnerId: ACCOUNT, VpcId: p.a, Region: REGION },
+        Status: { Code: p.status, Message: p.status === "active" ? "Active" : p.message }, Tags: nameTag(p.name), VpcPeeringConnectionId: p.id };
+    }) }),
     "describe-vpc-endpoints": (c) => ({ VpcEndpoints: c.a.endpoints.map((e) => ({ VpcEndpointId: e.id, VpcEndpointType: e.type, VpcId: c.a.vpcs[0].id, ServiceName: e.service, State: "available", RouteTableIds: e.rts, OwnerId: ACCOUNT })) }),
     "describe-availability-zones": () => ({ AvailabilityZones: ["a", "b", "c", "d", "e", "f"].map((z, n) => ({ State: "available", OptInStatus: "opt-in-not-required", Messages: [], RegionName: REGION, ZoneName: `us-east-1${z}`, ZoneId: `use1-az${[6, 1, 2, 4, 3, 5][n]}`, GroupName: REGION, NetworkBorderGroup: REGION, ZoneType: "availability-zone" })) }),
     "describe-regions": () => ({ Regions: ["us-east-1", "us-east-2", "us-west-2", "eu-west-1", "eu-central-1", "ap-south-1", "ap-southeast-2"].map((r) => ({ Endpoint: `ec2.${r}.amazonaws.com`, RegionName: r, OptInStatus: "opt-in-not-required" })) })
@@ -2139,6 +2175,14 @@
       else delete b.objects[u.key];
       say(`delete: ${c.pos[0]}`);
     }, s3fail: (c, e) => `delete failed: ${c.pos[0]} An error occurred (${e.code}) when calling the DeleteObject operation: ${e.message}` },
+    presign: { own: true, run(c, say) {
+      const u = s3url(c.pos[0]);
+      if (!u || !u.key) throw new ArgError(`<S3Uri>: ${c.pos[0] || ""} is not a valid S3 URI.`);
+      c.a.s3Check(c.who, "s3:GetObject", u.bucket, u.key);
+      (c.a.presigned = c.a.presigned || []).push(`${u.bucket}/${u.key}`);
+      const exp = Number(c.opt("expires-in") || 3600);
+      say(`https://${u.bucket}.s3.${REGION}.amazonaws.com/${u.key}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${keyId("ASIA", "you")}%2F20261030%2F${REGION}%2Fs3%2Faws4_request&X-Amz-Date=20261030T090000Z&X-Amz-Expires=${exp}&X-Amz-SignedHeaders=host&X-Amz-Security-Token=${blob("presigntok", 40)}&X-Amz-Signature=${hexOf("sig" + u.key + c.a.seq, 64)}`);
+    } },
     rb: { own: true, write: true, run(c, say) {
       const u = s3url(c.pos[0]);
       if (!u) throw new ArgError(`<S3Uri>: ${c.pos[0] || ""} is not a valid S3 URI.`);
@@ -2319,7 +2363,21 @@
       b.lifecycle = d;
       return { TransitionDefaultMinimumObjectSize: "all_storage_classes_128K" };
     } },
-    "delete-bucket-lifecycle": { own: true, write: true, run: (c) => { bucketOf(c, "s3:PutLifecycleConfiguration").lifecycle = null; } }
+    "delete-bucket-lifecycle": { own: true, write: true, run: (c) => { bucketOf(c, "s3:PutLifecycleConfiguration").lifecycle = null; } },
+    "get-bucket-cors": { own: true, run(c) {
+      const b = bucketOf(c, "s3:GetBucketCORS");
+      if (!b.cors) throw new AwsError("NoSuchCORSConfiguration", "The CORS configuration does not exist");
+      return { CORSRules: b.cors };
+    } },
+    "put-bucket-cors": { own: true, write: true, run(c) {
+      c.need("cors-configuration");
+      const b = bucketOf(c, "s3:PutBucketCORS");
+      const d = c.policy("cors-configuration", new AwsError("MalformedXML", "The XML you provided was not well-formed or did not validate against our published schema"));
+      if (!Array.isArray(d.CORSRules) || !d.CORSRules.length || d.CORSRules.some((r) => !r || !asList(r.AllowedOrigins).length || !asList(r.AllowedMethods).length)) throw new AwsError("MalformedXML", "The XML you provided was not well-formed or did not validate against our published schema");
+      for (const r of d.CORSRules) for (const m of asList(r.AllowedMethods)) if (!["GET", "PUT", "POST", "DELETE", "HEAD"].includes(m)) throw new AwsError("InvalidRequest", `Found unsupported HTTP method in CORS config. Unsupported method is ${m}`);
+      b.cors = d.CORSRules;
+    } },
+    "delete-bucket-cors": { own: true, write: true, run: (c) => { bucketOf(c, "s3:PutBucketCORS").cors = null; } }
   };
   const S3CONTROL = {
     "get-public-access-block": { own: true, run(c) {
@@ -2478,8 +2536,25 @@
     const who = a.role(f.role, f.name);
     if (f.needs.db) {
       const db = a.db(f.needs.db);
-      const r = a.connect(a.lambdaEp(f), a.dbEp(db), db.port);
-      if (r !== "ok") { ms = 5000; error = { errorType: "Error", errorMessage: `connect ${r === "refused" ? "ECONNREFUSED" : "ETIMEDOUT"} ${db.ip}:${db.port}` }; }
+      const port = Number(f.env.DB_PORT || db.port);
+      const r = a.connect(a.lambdaEp(f), a.dbEp(db), port);
+      if (r !== "ok") { ms = 5000; error = { errorType: "Error", errorMessage: `connect ${r === "refused" ? "ECONNREFUSED" : "ETIMEDOUT"} ${db.ip}:${port}` }; }
+    }
+    if (!error && f.needs.secret) {
+      const s = a.secrets.find((x) => x.name === f.needs.secret);
+      if (f.env.DB_PASSWORD !== undefined) {
+        if (f.env.DB_PASSWORD !== JSON.parse(a.secretValue(s)).password) { ms = 300; error = { errorType: "error", errorMessage: "password authentication failed for user \"orders_app\"" }; }
+      } else if (!f.env.SECRET_ID) { ms = 300; error = { errorType: "Error", errorMessage: "SECRET_ID is not set" }; }
+      else {
+        const sec = a.secrets.find((x) => x.name === f.env.SECRET_ID || x.arn === f.env.SECRET_ID);
+        const r = sec ? evaluate(a, who, "secretsmanager:GetSecretValue", sec.arn) : { allowed: false };
+        if (!sec) { ms = 300; error = { errorType: "ResourceNotFoundException", errorMessage: "Secrets Manager can't find the specified secret." }; }
+        else if (!r.allowed) { ms = 300; error = { errorType: "AccessDeniedException", errorMessage: `User: ${who.arn} is not authorized to perform: secretsmanager:GetSecretValue on resource: ${f.env.SECRET_ID} ${r.why}` }; }
+      }
+    }
+    if (!error && f.needs.table) {
+      const t = a.tables.find((x) => x.name === f.needs.table);
+      if (a.throttled(t)) { ms = 2400; error = { errorType: "ProvisionedThroughputExceededException", errorMessage: "The level of configured provisioned throughput for the table was exceeded. Consider increasing your provisioning level with the UpdateTable API." }; }
     }
     if (!error && f.needs.bucket) {
       const name = f.env[f.needs.bucket];
@@ -2633,7 +2708,7 @@
         if (!name.endsWith(z.name) ) throw new AwsError("InvalidChangeBatch", `[RRSet with DNS name ${name} is not permitted in zone ${z.name}]`);
         if (r.Type === "CNAME" && name === z.name) throw new AwsError("InvalidChangeBatch", `[RRSet of type CNAME with DNS name ${name} is not permitted at apex in zone ${z.name}]`);
         if (!r.AliasTarget && !(Array.isArray(r.ResourceRecords) && r.ResourceRecords.length)) throw new AwsError("InvalidInput", "Invalid request: Expected exactly one of [AliasTarget, all of [TTL, and ResourceRecords], or TrafficPolicyInstanceId], but found none in Change with [Action=" + ch.Action + ", Name=" + name + ", Type=" + r.Type + ", SetIdentifier=null]");
-        if (r.AliasTarget && !c.a.albs.some((x) => fqdn(r.AliasTarget.DNSName).replace(/^dualstack\./, "") === x.dns + ".")) throw new AwsError("InvalidChangeBatch", `[Tried to create an alias that targets ${r.AliasTarget.DNSName}, type ${r.Type} in zone ${r.AliasTarget.HostedZoneId}, but the alias target name does not lie within the target zone]`);
+        if (r.AliasTarget && !c.a.albs.some((x) => fqdn(r.AliasTarget.DNSName).replace(/^dualstack\./, "") === x.dns + ".") && !c.a.dists.some((x) => fqdn(r.AliasTarget.DNSName) === x.domain + ".")) throw new AwsError("InvalidChangeBatch", `[Tried to create an alias that targets ${r.AliasTarget.DNSName}, type ${r.Type} in zone ${r.AliasTarget.HostedZoneId}, but the alias target name does not lie within the target zone]`);
         const i = next.findIndex((x) => x.Name === name && x.Type === r.Type);
         const rec = { Name: name, Type: r.Type, ...(r.AliasTarget ? { AliasTarget: { HostedZoneId: r.AliasTarget.HostedZoneId, DNSName: fqdn(r.AliasTarget.DNSName), EvaluateTargetHealth: Boolean(r.AliasTarget.EvaluateTargetHealth) } } : { TTL: Number(r.TTL || 300), ResourceRecords: r.ResourceRecords }) };
         if (ch.Action === "CREATE") { if (i >= 0) throw new AwsError("InvalidChangeBatch", `[Tried to create resource record set [name='${name}', type='${r.Type}'] but it already exists]`); next.push(rec); }
@@ -2762,9 +2837,389 @@
     "describe-organization": (c) => ({ Organization: { Id: "o-a1b2c3d4e5", Arn: `arn:aws:organizations::${PARTNER}:organization/o-a1b2c3d4e5`, FeatureSet: "ALL", MasterAccountArn: `arn:aws:organizations::${PARTNER}:account/o-a1b2c3d4e5/${PARTNER}`, MasterAccountId: PARTNER, AvailablePolicyTypes: [{ Type: "SERVICE_CONTROL_POLICY", Status: "ENABLED" }] } })
   };
 
+
+  // --- CloudFront and ACM ---
+
+  const CF_ZONE = "Z2FDTNDATAQYW2";
+  const CF_IP = "18.160.10.20";
+  const uuid = (seed) => { const x = hexOf(seed, 32); return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`; };
+  Account.prototype.addCert = function (domain, region, status) {
+    const c = { arn: `arn:aws:acm:${region}:${ACCOUNT}:certificate/${uuid("cert" + domain + region + this.certs.length)}`, domain, region, status, created: START - 2 * DAY,
+      validation: { Name: `_${hexOf("vn" + domain + region, 32)}.${domain}.`, Type: "CNAME", Value: `_${hexOf("vv" + domain + region, 32)}.${hexOf("vz" + region, 10)}.acm-validations.aws.` } };
+    this.certs.push(c);
+    return c;
+  };
+  Account.prototype.addDist = function (alias, bucket) {
+    const id = "E" + hexOf("dist" + alias, 13).toUpperCase();
+    const d = { id, domain: `d${hexOf("cf" + alias, 13)}.cloudfront.net`, aliases: [alias], origin: `${bucket}.s3.${REGION}.amazonaws.com`, bucket, cert: null, etag: "E" + hexOf("etag" + id, 13).toUpperCase(),
+      status: "Deployed", cache: {}, invalidations: [], minTls: "TLSv1.2_2021", ttl: 86400 };
+    this.dists.push(d);
+    this.zones[0].records.push({ Name: alias + ".", Type: "A", AliasTarget: { HostedZoneId: CF_ZONE, DNSName: d.domain + ".", EvaluateTargetHealth: false } });
+    return d;
+  };
+  const certCovers = (c, host) => c.domain === host || (c.domain.startsWith("*.") && host.endsWith(c.domain.slice(1)) && host.split(".").length === c.domain.split(".").length);
+  // What a browser gets from https://alias: a TLS error, or the page (from cache if it is there).
+  Account.prototype.cfGet = function (d, host, path) {
+    const c = this.certs.find((x) => x.arn === d.cert);
+    if (!host.endsWith(".cloudfront.net") && !(c && c.status === "ISSUED" && certCovers(c, host))) return { tls: `SSL: no alternative certificate subject name matches target host name '${host}'` };
+    const key = path.split("?")[0] === "/" ? "/index.html" : path.split("?")[0];
+    if (!d.cache[key]) {
+      const o = latest(this.buckets[d.bucket] || { objects: {} }, key.slice(1));
+      if (!o || o.marker) return { code: 403, body: S3_ERR("AccessDenied", "Access Denied"), headers: ["X-Cache: Error from cloudfront"] };
+      d.cache[key] = { body: o.body, at: this.now };
+      return { code: 200, body: o.body, headers: ["X-Cache: Miss from cloudfront"] };
+    }
+    return { code: 200, body: d.cache[key].body, headers: ["X-Cache: Hit from cloudfront", `Age: ${Math.round((this.now - d.cache[key].at) / 1000)}`] };
+  };
+  const distOf = (c, key = "id") => {
+    c.need(key);
+    const d = c.a.dists.find((x) => x.id === c.opt(key));
+    if (!d) throw new AwsError("NoSuchDistribution", "The specified distribution does not exist.");
+    return d;
+  };
+  const distConfig = (a, d) => ({ CallerReference: `quest-${d.id}`, Aliases: { Quantity: d.aliases.length, Items: [...d.aliases] }, DefaultRootObject: "index.html",
+    Origins: { Quantity: 1, Items: [{ Id: d.bucket, DomainName: d.origin, OriginPath: "", S3OriginConfig: { OriginAccessIdentity: "" }, OriginAccessControlId: `E${hexOf("oac" + d.id, 13).toUpperCase()}` }] },
+    DefaultCacheBehavior: { TargetOriginId: d.bucket, ViewerProtocolPolicy: "redirect-to-https", CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6", Compress: true },
+    Comment: "Quest Kitchen website", Enabled: true, PriceClass: "PriceClass_100", HttpVersion: "http2and3", IsIPV6Enabled: true,
+    ViewerCertificate: d.cert ? { ACMCertificateArn: d.cert, SSLSupportMethod: "sni-only", MinimumProtocolVersion: d.minTls, Certificate: d.cert, CertificateSource: "acm" }
+      : { CloudFrontDefaultCertificate: true, SSLSupportMethod: "vip", MinimumProtocolVersion: "TLSv1", CertificateSource: "cloudfront" } });
+  const distJson = (a, d) => ({ Id: d.id, ARN: `arn:aws:cloudfront::${ACCOUNT}:distribution/${d.id}`, Status: d.status, LastModifiedTime: ts3(a.now - HOUR), DomainName: d.domain,
+    InProgressInvalidationBatches: d.invalidations.filter((i) => i.status === "InProgress").length, DistributionConfig: distConfig(a, d) });
+  const CLOUDFRONT = {
+    "list-distributions": (c) => ({ DistributionList: { Items: c.a.dists.map((d) => ({ Id: d.id, ARN: `arn:aws:cloudfront::${ACCOUNT}:distribution/${d.id}`, Status: d.status, DomainName: d.domain, Aliases: { Quantity: d.aliases.length, Items: d.aliases }, Enabled: true })), Quantity: c.a.dists.length, MaxItems: 100, IsTruncated: false, Marker: "" } }),
+    "get-distribution": (c) => { const d = distOf(c); return { ETag: d.etag, Distribution: distJson(c.a, d) }; },
+    "get-distribution-config": (c) => { const d = distOf(c); return { ETag: d.etag, DistributionConfig: distConfig(c.a, d) }; },
+    "update-distribution": { write: true, run(c) {
+      const d = distOf(c);
+      c.need("distribution-config");
+      if (!c.opt("if-match")) throw new AwsError("InvalidIfMatchVersion", "The If-Match version is missing or not valid for the resource.");
+      if (c.opt("if-match") !== d.etag) throw new AwsError("PreconditionFailed", "The request failed because it didn't meet the preconditions in one or more request-header fields.");
+      let cfg;
+      try { cfg = JSON.parse(c.opt("distribution-config")); } catch { throw new ArgError("Error parsing parameter '--distribution-config': Invalid JSON received."); }
+      if (cfg.DistributionConfig) cfg = cfg.DistributionConfig;
+      const vc = cfg.ViewerCertificate || {};
+      const arn = vc.ACMCertificateArn;
+      if (arn) {
+        const cert = c.a.certs.find((x) => x.arn === arn);
+        if (!cert || cert.region !== "us-east-1" || cert.status !== "ISSUED") throw new AwsError("InvalidViewerCertificate", "The specified SSL certificate doesn't exist, isn't in us-east-1 region, isn't valid, or doesn't include a valid certificate chain.");
+        for (const al of asList((cfg.Aliases || {}).Items)) if (!certCovers(cert, al)) throw new AwsError("InvalidViewerCertificate", `The certificate that is attached to your distribution doesn't cover the alternate domain name (CNAME) that you're trying to add. For more details, see: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CNAMEs.html#alternate-domain-names-requirements`);
+        if (vc.SSLSupportMethod && vc.SSLSupportMethod !== "sni-only" && vc.SSLSupportMethod !== "vip" && vc.SSLSupportMethod !== "static-ip") throw new AwsError("InvalidArgument", "The parameter SSLSupportMethod is invalid.");
+      } else if (asList((cfg.Aliases || {}).Items).length && vc.CloudFrontDefaultCertificate) {
+        throw new AwsError("InvalidViewerCertificate", "To add an alternate domain name (CNAME) to a CloudFront distribution, you must attach a trusted certificate that validates your authorization to use the domain name. For more details, see: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CNAMEs.html#alternate-domain-names-requirements");
+      }
+      d.cert = arn || null;
+      if (vc.MinimumProtocolVersion) d.minTls = vc.MinimumProtocolVersion;
+      d.status = "InProgress";
+      d.etag = "E" + hexOf("etag" + d.id + c.a.seq, 13).toUpperCase();
+      return { ETag: d.etag, Distribution: distJson(c.a, d) };
+    } },
+    "create-invalidation": { write: true, run(c) {
+      const d = distOf(c, "distribution-id");
+      c.need("paths");
+      const paths = c.list("paths").flatMap((p) => (shorthand(p) || {}).Items || [p]).map(String);
+      for (const p of paths) if (!p.startsWith("/")) throw new AwsError("InvalidArgument", "Your request contains one or more invalid invalidation paths.");
+      const inv = { id: "I" + hexOf("inv" + c.a.seq, 25).toUpperCase(), paths, status: "InProgress", at: c.a.now };
+      d.invalidations.push(inv);
+      return { Location: `https://cloudfront.amazonaws.com/2020-05-31/distribution/${d.id}/invalidation/${inv.id}`, Invalidation: { Id: inv.id, Status: inv.status, CreateTime: ts3(c.a.now), InvalidationBatch: { Paths: { Quantity: paths.length, Items: paths }, CallerReference: `cli-${c.a.now / 1000}-${c.a.seq}` } } };
+    } },
+    "list-invalidations": (c) => { const d = distOf(c, "distribution-id"); return { InvalidationList: { Items: d.invalidations.map((i) => ({ Id: i.id, CreateTime: ts3(i.at), Status: i.status })), Quantity: d.invalidations.length, MaxItems: 100, IsTruncated: false, Marker: "" } }; }
+  };
+  function certOf(c) {
+    c.need("certificate-arn");
+    const cert = c.a.certs.find((x) => x.arn === c.opt("certificate-arn"));
+    if (!cert || cert.region !== c.region) throw new AwsError("ResourceNotFoundException", `Could not find certificate ${c.opt("certificate-arn")} in account ${ACCOUNT}.`);
+    return cert;
+  }
+  const ACM = {
+    "list-certificates": (c) => ({ CertificateSummaryList: c.a.certs.filter((x) => x.region === c.region).map((x) => ({ CertificateArn: x.arn, DomainName: x.domain, SubjectAlternativeNameSummaries: [x.domain], HasAdditionalSubjectAlternativeNames: false, Status: x.status, Type: "AMAZON_ISSUED", KeyAlgorithm: "RSA-2048", InUse: c.a.dists.some((d) => d.cert === x.arn), CreatedAt: ts3(x.created) })) }),
+    "describe-certificate": (c) => {
+      const x = certOf(c);
+      return { Certificate: { CertificateArn: x.arn, DomainName: x.domain, SubjectAlternativeNames: [x.domain], DomainValidationOptions: [{ DomainName: x.domain, ValidationDomain: x.domain, ValidationStatus: x.status === "ISSUED" ? "SUCCESS" : "PENDING_VALIDATION", ResourceRecord: { ...x.validation }, ValidationMethod: "DNS" }],
+        Serial: x.status === "ISSUED" ? hexOf("serial" + x.arn, 32).match(/../g).join(":") : undefined, Subject: `CN=${x.domain}`, Issuer: "Amazon", CreatedAt: ts3(x.created), ...(x.status === "ISSUED" ? { IssuedAt: ts3(x.created + HOUR), NotBefore: ts3(x.created), NotAfter: ts3(x.created + 395 * DAY) } : {}),
+        Status: x.status, KeyAlgorithm: "RSA-2048", SignatureAlgorithm: "SHA256WITHRSA", InUseBy: c.a.dists.filter((d) => d.cert === x.arn).map((d) => `arn:aws:cloudfront::${ACCOUNT}:distribution/${d.id}`), Type: "AMAZON_ISSUED", RenewalEligibility: "INELIGIBLE", Options: { CertificateTransparencyLoggingPreference: "ENABLED" } } };
+    },
+    "request-certificate": { write: true, run(c) {
+      c.need("domain-name");
+      if ((c.opt("validation-method") || "EMAIL") !== "DNS") throw new ArgError("(The playground models DNS validation only: add --validation-method DNS.)");
+      return { CertificateArn: c.a.addCert(c.opt("domain-name"), c.region, "PENDING_VALIDATION").arn };
+    } }
+  };
+
+  // --- ECS ---
+
+  AWS_POLICIES.AmazonECSTaskExecutionRolePolicy = [{ Effect: "Allow", Action: ["ecr:GetAuthorizationToken", "ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "logs:CreateLogStream", "logs:PutLogEvents"], Resource: "*" }];
+  AWS_POLICIES.AmazonEC2ContainerRegistryReadOnly = [{ Effect: "Allow", Action: ["ecr:GetAuthorizationToken", "ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:GetRepositoryPolicy", "ecr:DescribeRepositories", "ecr:ListImages", "ecr:DescribeImages", "ecr:BatchGetImage"], Resource: "*" }];
+  const ECR_IP = "52.46.157.62";
+  // Why a Fargate task of this service cannot start, or null when it can.
+  Account.prototype.ecsReason = function (svc) {
+    const td = this.ecs.taskDefs[svc.taskDef];
+    const role = (td.executionRole || "").split("/").pop();
+    const taskId = hexOf("task" + svc.name, 32);
+    if (!this.iam.roles[role]) return `ResourceInitializationError: failed to validate logger args: The task cannot assume the role ${td.executionRole}.`;
+    const ep = { kind: "eni", subnet: this.sub(svc.subnets[0]).id, sgs: svc.sgs.map((n) => this.sgId(n) || n), ip: "10.0.11.90", publicIp: svc.publicIp && this.hasInternetRoute(this.sub(svc.subnets[0]).id) ? PUBLIC_IP(140) : null };
+    const has = (s) => this.endpoints.some((e) => e.service === `com.amazonaws.${REGION}.${s}`);
+    const api = this.egress(ep, ECR_IP, 443) || (has("ecr.api") && has("ecr.dkr"));
+    if (!api) return `ResourceInitializationError: unable to pull secrets or registry auth: execution resource retrieval failed: unable to retrieve ecr registry auth: service call has been retried 3 time(s): RequestError: send request failed caused by: Post "https://api.ecr.${REGION}.amazonaws.com/": dial tcp ${ECR_IP}:443: i/o timeout. Please check your task network configuration.`;
+    if (!this.can(this.role(role, taskId), "ecr:GetAuthorizationToken", "*")) return `ResourceInitializationError: unable to pull secrets or registry auth: execution resource retrieval failed: unable to retrieve ecr registry auth: service call has been retried 3 time(s): AccessDeniedException: User: arn:aws:sts::${ACCOUNT}:assumed-role/${role}/${taskId} is not authorized to perform: ecr:GetAuthorizationToken on resource: * because no identity-based policy allows the ecr:GetAuthorizationToken action. Please check your task network configuration.`;
+    if (!this.egress(ep, S3_IP, 443, "s3")) return `CannotPullContainerError: ref pull has been retried 5 time(s): failed to copy: httpReadSeeker: failed open: failed to do request: Get "https://prod-${REGION}-starport-layer-bucket.s3.${REGION}.amazonaws.com/${hexOf("layer" + svc.name, 6)}-${ACCOUNT}-${hexOf("l2" + svc.name, 8)}/${uuid("layer" + svc.name)}": dial tcp ${S3_IP}:443: i/o timeout`;
+    return null;
+  };
+  Account.prototype.ecsRunning = function (svc) { return this.ecsReason(svc) ? 0 : svc.desired; };
+  function svcOf(c) {
+    c.need("cluster", "service");
+    const s = c.a.ecs.services.find((x) => x.name === c.opt("service") && x.cluster === c.opt("cluster"));
+    if (!s) throw new AwsError("ServiceNotFoundException", "Service not found.");
+    return s;
+  }
+  const clusterArn = (n) => `arn:aws:ecs:${REGION}:${ACCOUNT}:cluster/${n}`;
+  const taskArn = (cl, id) => `arn:aws:ecs:${REGION}:${ACCOUNT}:task/${cl}/${id}`;
+  function ecsTasks(a, cluster, stopped) {
+    return a.ecs.services.filter((s) => s.cluster === cluster).flatMap((s) => {
+      const reason = a.ecsReason(s);
+      if (stopped) return reason ? [0, 1, 2].map((n) => ({ s, id: hexOf(`${s.name}stopped${n}`, 32), reason })) : [];
+      return reason ? [] : Array.from({ length: s.desired }, (_, n) => ({ s, id: hexOf(`${s.name}run${n}${a.ecs.deploys}`, 32) }));
+    });
+  }
+  const ECS = {
+    "list-clusters": (c) => ({ clusterArns: [...new Set(c.a.ecs.services.map((s) => s.cluster))].map(clusterArn) }),
+    "list-services": (c) => { c.need("cluster"); return { serviceArns: c.a.ecs.services.filter((s) => s.cluster === c.opt("cluster")).map((s) => `arn:aws:ecs:${REGION}:${ACCOUNT}:service/${s.cluster}/${s.name}`) }; },
+    "describe-services": (c) => {
+      c.need("cluster", "services");
+      return { services: c.list("services").map((n) => c.a.ecs.services.find((s) => s.name === n && s.cluster === c.opt("cluster"))).filter(Boolean).map((s) => {
+        const running = c.a.ecsRunning(s);
+        return { serviceArn: `arn:aws:ecs:${REGION}:${ACCOUNT}:service/${s.cluster}/${s.name}`, serviceName: s.name, clusterArn: clusterArn(s.cluster), status: "ACTIVE", desiredCount: s.desired, runningCount: running, pendingCount: 0, launchType: "FARGATE",
+          taskDefinition: `arn:aws:ecs:${REGION}:${ACCOUNT}:task-definition/${s.taskDef}`, networkConfiguration: { awsvpcConfiguration: { subnets: s.subnets.map((n) => c.a.sub(n).id), securityGroups: s.sgs.map((n) => c.a.sgId(n) || n), assignPublicIp: s.publicIp ? "ENABLED" : "DISABLED" } },
+          events: running ? [{ id: uuid("ev" + s.name + c.a.seq), createdAt: ts3(c.a.now - 60e3), message: `(service ${s.name}) has reached a steady state.` }]
+            : [{ id: uuid("ev1" + s.name), createdAt: ts3(c.a.now - 120e3), message: `(service ${s.name}) has started 1 tasks: (task ${hexOf(`${s.name}stopped0`, 32)}).` }, { id: uuid("ev2" + s.name), createdAt: ts3(c.a.now - 30 * 60e3), message: `(service ${s.name}) is unable to consistently start tasks successfully. For more information, see the Troubleshooting section of the Amazon ECS Developer Guide.` }] };
+      }), failures: [] };
+    },
+    "list-tasks": (c) => { c.need("cluster"); return { taskArns: ecsTasks(c.a, c.opt("cluster"), (c.opt("desired-status") || "RUNNING") === "STOPPED").filter((t) => !c.opt("service-name") || t.s.name === c.opt("service-name")).map((t) => taskArn(c.opt("cluster"), t.id)) }; },
+    "describe-tasks": (c) => {
+      c.need("cluster", "tasks");
+      const all = [...ecsTasks(c.a, c.opt("cluster"), true), ...ecsTasks(c.a, c.opt("cluster"), false)];
+      const want = c.list("tasks").map((t) => t.split("/").pop());
+      return { tasks: all.filter((t) => want.includes(t.id)).map((t) => ({ taskArn: taskArn(c.opt("cluster"), t.id), clusterArn: clusterArn(c.opt("cluster")), taskDefinitionArn: `arn:aws:ecs:${REGION}:${ACCOUNT}:task-definition/${t.s.taskDef}`, group: `service:${t.s.name}`,
+        launchType: "FARGATE", platformVersion: "1.4.0", cpu: "512", memory: "1024", lastStatus: t.reason ? "STOPPED" : "RUNNING", desiredStatus: t.reason ? "STOPPED" : "RUNNING",
+        containers: [{ name: t.s.name, image: c.a.ecs.taskDefs[t.s.taskDef].image, lastStatus: t.reason ? "STOPPED" : "RUNNING" }],
+        ...(t.reason ? { stopCode: "TaskFailedToStart", stoppedReason: t.reason, stoppingAt: ts3(c.a.now - 90e3), stoppedAt: ts3(c.a.now - 80e3) } : { startedAt: ts3(c.a.now - 60e3) }) })), failures: [] };
+    },
+    "describe-task-definition": (c) => {
+      c.need("task-definition");
+      const key = c.opt("task-definition").split("/").pop();
+      const td = c.a.ecs.taskDefs[key] || Object.entries(c.a.ecs.taskDefs).find(([k]) => k.split(":")[0] === key)?.[1];
+      if (!td) throw new AwsError("ClientException", "Unable to describe task definition.");
+      return { taskDefinition: { taskDefinitionArn: `arn:aws:ecs:${REGION}:${ACCOUNT}:task-definition/${td.family}:${td.revision}`, family: td.family, revision: td.revision, executionRoleArn: td.executionRole, taskRoleArn: td.taskRole,
+        networkMode: "awsvpc", requiresCompatibilities: ["FARGATE"], cpu: "512", memory: "1024", status: "ACTIVE",
+        containerDefinitions: [{ name: td.family, image: td.image, essential: true, logConfiguration: { logDriver: "awslogs", options: { "awslogs-group": `/ecs/${td.family}`, "awslogs-region": REGION, "awslogs-stream-prefix": "ecs" } } }] } };
+    },
+    "update-service": { write: true, run(c) {
+      const s = svcOf(c);
+      if (c.num("desired-count") !== undefined) s.desired = c.num("desired-count");
+      const nc = c.opt("network-configuration");
+      if (nc) {
+        const pubIp = /assignPublicIp"?\s*[=:]\s*"?(ENABLED|DISABLED)/.exec(nc);
+        if (pubIp) s.publicIp = pubIp[1] === "ENABLED";
+      }
+      c.a.ecs.deploys++;
+      return { service: { serviceName: s.name, desiredCount: s.desired, runningCount: c.a.ecsRunning(s), status: "ACTIVE", deployments: [{ id: `ecs-svc/${hash(s.name + c.a.seq)}`, status: "PRIMARY", rolloutState: "IN_PROGRESS" }] } };
+    } }
+  };
+
+  // --- EKS and kubectl ---
+
+  const EKS_POLICIES = ["AmazonEKSClusterAdminPolicy", "AmazonEKSAdminPolicy", "AmazonEKSEditPolicy", "AmazonEKSViewPolicy", "AmazonEKSAdminViewPolicy"];
+  const eksPolicyArn = (n) => `arn:aws:eks::aws:cluster-access-policy/${n}`;
+  function clusterOf(c, key = "cluster-name") {
+    c.need(key);
+    if (!c.a.eks || c.a.eks.name !== c.opt(key)) throw new AwsError("ResourceNotFoundException", `No cluster found for name: ${c.opt(key)}.`);
+    return c.a.eks;
+  }
+  function entryOf(c, k) {
+    c.need("principal-arn");
+    const e = k.entries.find((x) => x.principal === c.opt("principal-arn"));
+    if (!e) throw new AwsError("ResourceNotFoundException", `The specified access entry resource could not be found.`);
+    return e;
+  }
+  const EKS = {
+    "list-clusters": (c) => ({ clusters: c.a.eks ? [c.a.eks.name] : [] }),
+    "describe-cluster": (c) => {
+      const k = clusterOf(c, "name");
+      return { cluster: { name: k.name, arn: `arn:aws:eks:${REGION}:${ACCOUNT}:cluster/${k.name}`, createdAt: ts3(START - 200 * DAY), version: "1.33", endpoint: `https://${hexOf("eks", 32).toUpperCase()}.gr7.${REGION}.eks.amazonaws.com`,
+        roleArn: iamArn("role", "eks-cluster-role"), status: "ACTIVE", platformVersion: "eks.9", accessConfig: { authenticationMode: k.authMode }, resourcesVpcConfig: { vpcId: c.a.vpcs[0].id, endpointPublicAccess: true, endpointPrivateAccess: true } } };
+    },
+    "update-kubeconfig": { action: "eks:DescribeCluster", run(c, say) {
+      const k = clusterOf(c, "name");
+      c.a.kube = { cluster: k.name, profile: c.o.profile ? c.o.profile[0] : null };
+      say(`Added new context arn:aws:eks:${REGION}:${ACCOUNT}:cluster/${k.name} to /Users/you/.kube/config`);
+    } },
+    "list-access-entries": (c) => ({ accessEntries: clusterOf(c).entries.map((e) => e.principal) }),
+    "describe-access-entry": (c) => { const k = clusterOf(c); const e = entryOf(c, k); return { accessEntry: { clusterName: k.name, principalArn: e.principal, kubernetesGroups: [], accessEntryArn: `arn:aws:eks:${REGION}:${ACCOUNT}:access-entry/${k.name}/role/${ACCOUNT}/${e.principal.split("/").pop()}/${uuid(e.principal)}`, createdAt: ts3(e.at), username: e.principal, type: "STANDARD" } }; },
+    "create-access-entry": { write: true, run(c) {
+      const k = clusterOf(c);
+      c.need("principal-arn");
+      const p = c.opt("principal-arn");
+      const m = /^arn:aws:iam::(\d{12}):(role|user)\/(.+)$/.exec(p);
+      if (!m || !(m[2] === "role" ? c.a.iam.roles[m[3]] : c.a.iam.users[m[3]])) throw new AwsError("InvalidParameterException", `The specified principalArn is invalid: invalid principal ${p}`);
+      if (k.entries.some((e) => e.principal === p)) throw new AwsError("ResourceInUseException", "The specified access entry resource is already in use on this cluster.");
+      k.entries.push({ principal: p, policies: [], at: c.a.now });
+      return { accessEntry: { clusterName: k.name, principalArn: p, kubernetesGroups: [], username: p, type: "STANDARD", createdAt: ts3(c.a.now) } };
+    } },
+    "associate-access-policy": { write: true, run(c) {
+      const k = clusterOf(c);
+      const e = entryOf(c, k);
+      c.need("policy-arn", "access-scope");
+      const pol = c.opt("policy-arn");
+      if (!EKS_POLICIES.map(eksPolicyArn).includes(pol)) throw new AwsError("InvalidParameterException", `The specified policyArn is invalid: ${pol}`);
+      const sc = shorthand(c.opt("access-scope")) || {};
+      if (!["cluster", "namespace"].includes(sc.type)) throw new AwsError("InvalidParameterException", "The access scope type must be cluster or namespace.");
+      e.policies = [...e.policies.filter((x) => x.arn !== pol), { arn: pol, scope: sc.type, namespaces: asList(sc.namespaces) }];
+      return { clusterName: k.name, principalArn: e.principal, associatedAccessPolicy: { policyArn: pol, accessScope: { type: sc.type, namespaces: asList(sc.namespaces) }, associatedAt: ts3(c.a.now) } };
+    } },
+    "list-associated-access-policies": (c) => { const k = clusterOf(c); const e = entryOf(c, k); return { clusterName: k.name, principalArn: e.principal, associatedAccessPolicies: e.policies.map((p) => ({ policyArn: p.arn, accessScope: { type: p.scope, namespaces: p.namespaces } })) }; },
+    "list-access-policies": () => ({ accessPolicies: EKS_POLICIES.map((n) => ({ name: n, arn: eksPolicyArn(n) })) })
+  };
+  // What a principal may do in the cluster, from its access entry's policies.
+  Account.prototype.kubeCan = function (principal, verb, ns) {
+    const e = this.eks.entries.find((x) => x.principal === principal);
+    if (!e) return "unauthorized";
+    const read = ["get", "list", "watch"].includes(verb);
+    return e.policies.some((p) => (p.scope === "cluster" || (ns && p.namespaces.includes(ns))) && (/ClusterAdmin|AdminPolicy|EditPolicy/.test(p.arn) || (read && /View/.test(p.arn)))) ? "yes" : "forbidden";
+  };
+  const PODS = [["default", "shop-7d9f8c6b5d-x2kq8", "1/1", "Running", "0", "3d"], ["default", "shop-7d9f8c6b5d-p7nhz", "1/1", "Running", "0", "3d"], ["kube-system", "coredns-6b9575c64c-4vnzx", "1/1", "Running", "0", "41d"], ["kube-system", "aws-node-r5tqm", "2/2", "Running", "0", "41d"]];
+  function kubectl(a, args) {
+    if (!a.kube) return [["E1030 09:00:00.000000   48211 memcache.go:265] \"Unhandled Error\" err=\"couldn't get current server API group list: Get \\\"http://localhost:8080/api?timeout=32s\\\": dial tcp [::1]:8080: connect: connection refused\"", "warn"], ["The connection to the server localhost:8080 was refused - did you specify the right host or port?", "warn"]];
+    const [verb, res = ""] = args.filter((x) => !x.startsWith("-"));
+    if (verb === "config") return [[`arn:aws:eks:${REGION}:${ACCOUNT}:cluster/${a.kube.cluster}`]];
+    let who;
+    try { who = whoAmI(a, credSource(a, a.kube.profile, a.session), "GetCallerIdentity", "sts"); } catch (e) { return [[`Unable to connect to the server: getting credentials: exec: executable aws failed with exit code 255`, "warn"]]; }
+    const ns = args.includes("-A") || args.includes("--all-namespaces") ? null : (args[args.indexOf("-n") + 1] && args.includes("-n") ? args[args.indexOf("-n") + 1] : "default");
+    const canVerb = verb === "auth" ? (args.filter((x) => !x.startsWith("-"))[2] || "get") : verb === "get" ? "list" : verb;
+    const kind = verb === "auth" ? args.filter((x) => !x.startsWith("-"))[3] || "pods" : res.replace(/^(po|pod)$/, "pods").replace(/^(no|node)$/, "nodes");
+    const r = a.kubeCan(who.baseArn, canVerb, kind === "nodes" ? null : ns);
+    if (r === "unauthorized") return [["error: You must be logged in to the server (Unauthorized)", "warn"]];
+    if (verb === "auth") return [[r === "yes" ? "yes" : "no"]];
+    if (r === "forbidden") return [[`Error from server (Forbidden): ${kind} is forbidden: User "${who.arn}" cannot ${canVerb} resource "${kind}" in API group "" ${ns && kind !== "nodes" ? `in the namespace "${ns}"` : "at the cluster scope"}`, "warn"]];
+    if (verb !== "get") return [[`(The playground models kubectl get pods, get nodes and auth can-i for this cluster.)`, "dim"]];
+    if (kind === "nodes") return [["NAME                          STATUS   ROLES    AGE   VERSION", "head"], ["ip-10-0-11-61.ec2.internal    Ready    <none>   41d   v1.33.4-eks-1a2b3c4", "row"], ["ip-10-0-12-62.ec2.internal    Ready    <none>   41d   v1.33.4-eks-1a2b3c4", "row"]];
+    const rows = PODS.filter((p) => !ns || p[0] === ns);
+    if (!rows.length) return [[`No resources found in ${ns} namespace.`]];
+    return ns ? [["NAME                       READY   STATUS    RESTARTS   AGE", "head"], ...rows.map((p) => [`${p[1].padEnd(27)}${p[2].padEnd(8)}${p[3].padEnd(10)}${p[4].padEnd(11)}${p[5]}`, "row"])]
+      : [["NAMESPACE     NAME                       READY   STATUS    RESTARTS   AGE", "head"], ...rows.map((p) => [`${p[0].padEnd(14)}${p[1].padEnd(27)}${p[2].padEnd(8)}${p[3].padEnd(10)}${p[4].padEnd(11)}${p[5]}`, "row"])];
+  }
+
+  // --- Secrets Manager ---
+
+  function secretOf(c) {
+    c.need("secret-id");
+    const id = c.opt("secret-id");
+    const s = c.a.secrets.find((x) => x.name === id || x.arn === id);
+    if (!s) throw new AwsError("ResourceNotFoundException", "Secrets Manager can't find the specified secret.");
+    c.allow(`secretsmanager:${c.opName}`, s.arn);
+    return s;
+  }
+  Account.prototype.secretValue = function (s) { return JSON.stringify({ username: "orders_app", password: blob(`pw${s.name}${s.version}`, 32), host: this.dbHost(this.dbs[0]), port: 5432, dbname: "orders" }); };
+  Account.prototype.rotate = function (s) { s.version++; s.rotated = this.now; };
+  const SECRETS = {
+    "list-secrets": (c) => ({ SecretList: c.a.secrets.map((s) => ({ ARN: s.arn, Name: s.name, RotationEnabled: s.rotation, ...(s.rotation ? { RotationRules: { AutomaticallyAfterDays: 30 }, RotationLambdaARN: `arn:aws:lambda:${REGION}:${ACCOUNT}:function:SecretsManagerRDSPostgreSQLRotation` } : {}), LastChangedDate: ts3(s.rotated), LastRotatedDate: ts3(s.rotated) })) }),
+    "describe-secret": { own: true, run(c) {
+      const s = secretOf(c);
+      return { ARN: s.arn, Name: s.name, RotationEnabled: s.rotation, RotationLambdaARN: `arn:aws:lambda:${REGION}:${ACCOUNT}:function:SecretsManagerRDSPostgreSQLRotation`, RotationRules: { AutomaticallyAfterDays: 30 },
+        LastRotatedDate: ts3(s.rotated), LastChangedDate: ts3(s.rotated), NextRotationDate: ts3(s.rotated + 30 * DAY), VersionIdsToStages: { [uuid(s.name + s.version)]: ["AWSCURRENT"], [uuid(s.name + (s.version - 1))]: ["AWSPREVIOUS"] } };
+    } },
+    "get-secret-value": { own: true, run(c) {
+      const s = secretOf(c);
+      return { ARN: s.arn, Name: s.name, VersionId: uuid(s.name + s.version), SecretString: c.a.secretValue(s), VersionStages: ["AWSCURRENT"], CreatedDate: ts3(s.rotated) };
+    } },
+    "rotate-secret": { own: true, write: true, run(c) {
+      const s = secretOf(c);
+      c.a.rotate(s);
+      return { ARN: s.arn, Name: s.name, VersionId: uuid(s.name + s.version) };
+    } }
+  };
+
+  // --- DynamoDB and SQS ---
+
+  function tableOf(c) {
+    c.need("table-name");
+    const t = c.a.tables.find((x) => x.name === c.opt("table-name"));
+    if (!t) throw new AwsError("ResourceNotFoundException", `Requested resource not found: Table: ${c.opt("table-name")} not found`);
+    return t;
+  }
+  const tableJson = (a, t) => ({ AttributeDefinitions: [{ AttributeName: "orderId", AttributeType: "S" }], TableName: t.name, KeySchema: [{ AttributeName: "orderId", KeyType: "HASH" }], TableStatus: t.status,
+    CreationDateTime: ts3(START - 300 * DAY), ProvisionedThroughput: { NumberOfDecreasesToday: 0, ReadCapacityUnits: t.mode === "PROVISIONED" ? t.rcu : 0, WriteCapacityUnits: t.mode === "PROVISIONED" ? t.wcu : 0 },
+    TableSizeBytes: 912384113, ItemCount: 1840221, TableArn: `arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/${t.name}`, TableId: uuid(t.name), BillingModeSummary: { BillingMode: t.mode, LastUpdateToPayPerRequestDateTime: t.mode === "PAY_PER_REQUEST" ? ts3(a.now) : undefined }, DeletionProtectionEnabled: true });
+  Account.prototype.throttled = function (t) { return t.mode === "PROVISIONED" && t.wcu < t.writes; };
+  const DYNAMODB = {
+    "list-tables": (c) => ({ TableNames: c.a.tables.map((t) => t.name) }),
+    "describe-table": (c) => ({ Table: tableJson(c.a, tableOf(c)) }),
+    "update-table": { write: true, run(c) {
+      const t = tableOf(c);
+      const mode = c.opt("billing-mode");
+      const pt = shorthand(c.opt("provisioned-throughput") || "") || {};
+      if (mode && !["PROVISIONED", "PAY_PER_REQUEST"].includes(mode)) throw new ArgError(`aws: [ERROR]: argument --billing-mode: Found invalid choice '${mode}'`);
+      if ((mode === "PROVISIONED" || (!mode && t.mode === "PROVISIONED")) && c.opt("provisioned-throughput") && (!pt.ReadCapacityUnits || !pt.WriteCapacityUnits)) throw new AwsError("ValidationException", "One or more parameter values were invalid: ReadCapacityUnits and WriteCapacityUnits must both be specified when BillingMode is PROVISIONED");
+      if (mode === "PAY_PER_REQUEST" && c.opt("provisioned-throughput")) throw new AwsError("ValidationException", "One or more parameter values were invalid: Neither ReadCapacityUnits nor WriteCapacityUnits can be specified when BillingMode is PAY_PER_REQUEST");
+      if (mode) t.mode = mode;
+      if (pt.ReadCapacityUnits) { t.rcu = Number(pt.ReadCapacityUnits); t.wcu = Number(pt.WriteCapacityUnits); }
+      t.status = "UPDATING";
+      return { TableDescription: tableJson(c.a, t) };
+    } }
+  };
+  function queueOf(c) {
+    c.need("queue-url");
+    const q = c.a.queues.find((x) => x.url === c.opt("queue-url"));
+    if (!q) throw new AwsError("AWS.SimpleQueueService.NonExistentQueue", "The specified queue does not exist.");
+    return q;
+  }
+  const SQS_ATTRS = ["VisibilityTimeout", "MessageRetentionPeriod", "ReceiveMessageWaitTimeSeconds", "DelaySeconds", "RedrivePolicy", "MaximumMessageSize"];
+  const SQS = {
+    "list-queues": (c) => ({ QueueUrls: c.a.queues.map((q) => q.url) }),
+    "get-queue-url": (c) => {
+      c.need("queue-name");
+      const q = c.a.queues.find((x) => x.name === c.opt("queue-name"));
+      if (!q) throw new AwsError("AWS.SimpleQueueService.NonExistentQueue", "The specified queue does not exist.");
+      return { QueueUrl: q.url };
+    },
+    "get-queue-attributes": (c) => {
+      const q = queueOf(c);
+      const all = { QueueArn: `arn:aws:sqs:${REGION}:${ACCOUNT}:${q.name}`, ApproximateNumberOfMessages: String(q.depth), ApproximateNumberOfMessagesNotVisible: String(q.inflight), ApproximateNumberOfMessagesDelayed: "0",
+        CreatedTimestamp: String(Math.round((START - 300 * DAY) / 1000)), LastModifiedTimestamp: String(Math.round(q.modified / 1000)), VisibilityTimeout: String(q.visibility), MaximumMessageSize: "262144",
+        MessageRetentionPeriod: String(q.retention), DelaySeconds: "0", ReceiveMessageWaitTimeSeconds: "20", SqsManagedSseEnabled: "true", ...(q.dlq ? { RedrivePolicy: JSON.stringify({ deadLetterTargetArn: `arn:aws:sqs:${REGION}:${ACCOUNT}:${q.dlq}`, maxReceiveCount: 5 }) } : {}) };
+      const names = c.list("attribute-names");
+      return { Attributes: !names.length || names.includes("All") ? all : Object.fromEntries(names.filter((n) => all[n] !== undefined).map((n) => [n, all[n]])) };
+    },
+    "set-queue-attributes": { write: true, run(c) {
+      const q = queueOf(c);
+      c.need("attributes");
+      let attrs;
+      try { attrs = JSON.parse(c.opt("attributes")); } catch { attrs = shorthand(c.opt("attributes")) || {}; }
+      for (const [k, v] of Object.entries(attrs)) {
+        if (!SQS_ATTRS.includes(k)) throw new AwsError("InvalidAttributeName", `Unknown Attribute ${k}.`);
+        if (k === "VisibilityTimeout" && !(Number(v) >= 0 && Number(v) <= 43200)) throw new AwsError("InvalidAttributeValue", `Invalid value for the parameter VisibilityTimeout. Reason: Must be between 0 and 43200, if provided.`);
+      }
+      if (attrs.VisibilityTimeout !== undefined) q.visibility = Number(attrs.VisibilityTimeout);
+      if (attrs.MessageRetentionPeriod !== undefined) q.retention = Number(attrs.MessageRetentionPeriod);
+      q.modified = c.a.now;
+    } },
+    "purge-queue": { write: true, run(c) { const q = queueOf(c); q.depth = 0; q.inflight = 0; q.purged = true; } }
+  };
+
+  // The nightly inventory script: hundreds of DescribeInstances calls in parallel.
+  function inventory(a) {
+    const p = a.profiles.default || {};
+    const mode = a.env.AWS_RETRY_MODE || p.retry_mode || "legacy";
+    const attempts = Number(a.env.AWS_MAX_ATTEMPTS || p.max_attempts || (mode === "legacy" ? 5 : 3));
+    const par = Number((/PARALLEL=(\d+)/.exec(a.files["inventory.conf"] || "") || [])[1] || 32);
+    const out = [[`inventory: ${par} parallel jobs, ${14 * 6} accounts and Regions`, "dim"]];
+    const ok = (mode === "adaptive" && attempts >= 5) || (mode === "standard" && attempts >= 8) || par <= 4;
+    a.inventoryOk = ok;
+    if (ok) return [...out, ["inventory: 1,208 instances written to inventory.csv"]];
+    return [...out, ["", null], [`An error occurred (RequestLimitExceeded) when calling the DescribeInstances operation (reached max retries: ${attempts - 1}): Request limit exceeded.`, "warn"], ["inventory: failed after 61 of 84 account/Region pairs", "warn"]];
+  }
+
   const SERVICES = { sts: STS, iam: iamOps, configure: CONFIGURE, sso: SSO, ec2: EC2, elbv2: ELBV2, autoscaling: AUTOSCALING, s3: S3, s3api: S3API, s3control: S3CONTROL, kms: KMS,
     cloudwatch: CLOUDWATCH, logs: LOGS, sns: SNS, lambda: LAMBDA, rds: RDS, route53: ROUTE53, route53domains: DOMAINS, cloudtrail: CLOUDTRAIL, guardduty: GUARDDUTY,
-    "service-quotas": QUOTAS, ce: CE, ssm: SSM, organizations: ORGS };
+    "service-quotas": QUOTAS, ce: CE, ssm: SSM, organizations: ORGS, cloudfront: CLOUDFRONT, acm: ACM, ecs: ECS, eks: EKS, secretsmanager: SECRETS, dynamodb: DYNAMODB, sqs: SQS };
   const HELP_AWS = ["The playground models these aws CLI services (type 'aws <service> help' for their commands):", "  " + Object.keys(SERVICES).join(", "),
     "Global options: --region, --profile, --output json|text, --query (a JMESPath subset)."];
 
@@ -2816,7 +3271,9 @@
   const HELP = [
     "This is a simulation of an AWS account. Nothing here reaches AWS or costs money.",
     "aws ...           the AWS CLI: sts, iam, ec2, elbv2, autoscaling, s3, s3api, kms, rds, lambda,",
-    "                  logs, cloudwatch, route53, cloudtrail, guardduty, ce, ssm, service-quotas",
+    "                  logs, cloudwatch, route53, cloudtrail, guardduty, ce, ssm, service-quotas,",
+    "                  cloudfront, acm, ecs, eks, secretsmanager, dynamodb, sqs",
+    "kubectl get pods, kubectl auth can-i   on the EKS cluster, after aws eks update-kubeconfig",
     "aws <service> help    list what a service can do here",
     "curl, dig, nslookup, nc -vz, ssh, psql   test from your laptop (or from an instance)",
     "aws ssm start-session --target <instance-id>   open a shell on an instance; 'exit' leaves",
@@ -2833,6 +3290,7 @@
     const r = a.resolve(host, Boolean(a.session));
     if (!r || r.servfail || r.nx) return { err: "resolve", r };
     if (r.alb) return { alb: r.alb, ip: r.ip };
+    if (r.cf) return { cf: r.cf, ip: r.ip, internet: true };
     if (r.db) return { ep: a.dbEp(r.db), ip: r.ip, db: r.db };
     if (r.s3 !== undefined || r.ip === S3_IP) return { s3: r.s3, ip: S3_IP };
     const at = a.atIp(r.ip);
@@ -2885,16 +3343,20 @@
       const conn = tcp(a, t, port);
       if (conn === "timeout") return fail(28, `Failed to connect to ${host} port ${port} after ${ms(130217)} ms: Couldn't connect to server`);
       if (conn === "refused") return fail(7, `Failed to connect to ${host} port ${port} after 3 ms: Couldn't connect to server`);
-      if (t.alb) res = a.albGet(t.alb, path, fromOf(a));
+      if (t.cf) {
+        if (scheme === "http") res = { code: 301, body: "", headers: [`Location: https://${host}${path}`, "Server: CloudFront"] };
+        else res = a.cfGet(t.cf, host, path);
+        if (res.tls) return fail(60, `${res.tls}\nMore details here: https://curl.se/docs/sslcerts.html`);
+      } else if (t.alb) res = a.albGet(t.alb, path, fromOf(a));
       else if (t.inst) res = a.appGet(t.inst, path);
       else if (t.db) return fail(52, "Empty reply from server");
-      else if (t.s3 !== undefined) res = s3Http(a, t.s3, path);
+      else if (t.s3 !== undefined) res = s3Http(a, t.s3, path, o);
       else res = { code: 200, body: host === "checkip.amazonaws.com" ? (a.session ? natIpOf(a) : LAPTOP) : `{"status":"ok","host":"${host}"}` };
       if (res.err) return fail(28, `Failed to connect to ${host} port ${port} after ${ms(130217)} ms: Couldn't connect to server`);
     }
-    const reason = { 200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 502: "Bad Gateway", 503: "Service Temporarily Unavailable", 504: "Gateway Time-out" }[res.code];
+    const reason = { 301: "Moved Permanently", 200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 502: "Bad Gateway", 503: "Service Temporarily Unavailable", 504: "Gateway Time-out" }[res.code];
     const head = [`HTTP/1.1 ${res.code} ${reason}`, `Date: ${new Date(a.now).toUTCString()}`, `Content-Type: ${/^</.test(res.body) ? "text/html" : "text/plain"}`, `Content-Length: ${res.body.length}`, "Connection: keep-alive",
-      ...(res.code >= 502 && res.code <= 504 ? ["Server: awselb/2.0"] : [])];
+      ...(res.code >= 502 && res.code <= 504 ? ["Server: awselb/2.0"] : []), ...(res.headers || [])];
     if (o.fail && res.code >= 400) return fail(22, `The requested URL returned error: ${res.code}`);
     if (o.head) return head.map((t) => [t]);
     if (o.out) { a.files[o.out.replace(/^\.\//, "")] = res.body; return o.silent ? [] : [["  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current", "dim"], [`100  ${String(res.body.length).padStart(4)}  100  ${String(res.body.length).padStart(4)}    0     0   9812      0 --:--:-- --:--:-- --:--:--  9851`, "dim"]]; }
@@ -2906,12 +3368,25 @@
     return e ? e.ip : a.publicIpOf(a.session) || "";
   }
   // Anonymous HTTP to S3: what the internet sees of a bucket.
-  function s3Http(a, hostBucket, path) {
+  function s3Http(a, hostBucket, rawPath, o = { headers: {}, method: "GET" }) {
+    const [path, qs = ""] = rawPath.split("?");
     const parts = path.replace(/^\//, "").split("/");
     const bucket = hostBucket || parts.shift();
     const key = decodeURIComponent(hostBucket ? path.replace(/^\//, "") : parts.join("/"));
+    const origin = o.headers.origin;
+    const b = a.buckets[bucket];
+    const rule = (method) => b && origin && (b.cors || []).find((r) => asList(r.AllowedOrigins).some((x) => glob(x, origin)) && asList(r.AllowedMethods).includes(method));
+    if (o.method === "OPTIONS" && b) {
+      const want = (o.headers["access-control-request-method"] || "GET").toUpperCase();
+      if (!rule(want)) return { code: 403, body: S3_ERR("AccessForbidden", "CORSResponse: This CORS request is not allowed. This is usually because the evalution of Origin, request method / Access-Control-Request-Method or Access-Control-Request-Headers are not whitelisted by the resource's CORS spec.", `<Method>${want}</Method><ResourceType>OBJECT</ResourceType>`) };
+      return { code: 200, body: "", headers: [`Access-Control-Allow-Origin: ${origin}`, `Access-Control-Allow-Methods: ${asList(rule(want).AllowedMethods).join(", ")}`, "Vary: Origin, Access-Control-Request-Headers, Access-Control-Request-Method"] };
+    }
+    const cors = rule(o.method === "HEAD" ? "HEAD" : "GET") ? [`Access-Control-Allow-Origin: ${origin}`, "Vary: Origin, Access-Control-Request-Headers, Access-Control-Request-Method"] : [];
+    const signed = /X-Amz-Signature=/.test(qs) && (a.presigned || []).includes(`${bucket}/${key}`);
     try {
-      const r = a.s3Check({ anonymous: true, account: "anonymous" }, key ? "s3:GetObject" : "s3:ListBucket", bucket, key || undefined);
+      const r = signed ? { b, obj: latest(b, key) } : a.s3Check({ anonymous: true, account: "anonymous" }, key ? "s3:GetObject" : "s3:ListBucket", bucket, key || undefined);
+      if (key && (!r.obj || r.obj.marker)) return { code: 404, body: S3_ERR("NoSuchKey", "The specified key does not exist.", `<Key>${key}</Key>`) };
+      if (signed) return { code: 200, body: r.obj.body || "", headers: cors };
       if (key && (!r.obj || r.obj.marker)) return { code: 404, body: S3_ERR("NoSuchKey", "The specified key does not exist.", `<Key>${key}</Key>`) };
       return { code: 200, body: key ? r.obj.body || "%PDF-1.7 (invoice)" : `<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult><Name>${bucket}</Name><KeyCount>${Object.keys(r.b.objects).length}</KeyCount></ListBucketResult>` };
     } catch (e) {
@@ -3076,6 +3551,11 @@
         return [[[`git: '${args[0] || ""}' is not a git command here. The playground has git log, git grep and git status.`, "warn"]], 1];
       }
       case "curl": return ok(curl(a, args));
+      case "kubectl": return ok(kubectl(a, args));
+      case "./inventory.sh": case "bash": case "sh":
+        if (cmd !== "./inventory.sh" && !/inventory\.sh$/.test(args[0] || "")) return [[[`${cmd}: the playground runs only ./inventory.sh`, "warn"]], 127];
+        if (a.files["inventory.sh"] === undefined) return [[[`zsh: no such file or directory: ./inventory.sh`, "warn"]], 127];
+        return ok(inventory(a));
       case "dig": return ok(dig(a, args));
       case "nslookup": case "host": return ok(nslookup(a, args));
       case "nc": case "ncat": case "telnet": return ok(nc(a, args));
@@ -3179,6 +3659,10 @@
       "rtb-id": (a.rt(b.rtb || "") || a.rt("private-rt")).id, "key-id": a.kmsKeys[0] && a.kmsKeys[0].alias, "nat-id": a.nats[0] && a.nats[0].id, "volume-id": (a.volumes.find((v) => !v.attached) || a.volumes[0]).id,
       "snapshot-id": a.snapshots[0] && a.snapshots[0].id, db: a.dbs[0].id, asg: a.asgs[0].name, "acl-id": a.nacls[a.nacls.length - 1].id, "access-key-id": ((a.iam.users[b.user || ""] || {}).keys || [])[0] || (Object.values(a.creds).find((k) => !k.session) || {}).id,
       policy: Object.keys((a.iam.users[b.user || ""] || Object.values(a.iam.users).find((u) => Object.keys(u.inline).length) || { inline: {} }).inline)[0],
+      cluster: a.eks ? a.eks.name : (a.ecs.services[0] || { cluster: "kitchen" }).cluster, service: (a.ecs.services[0] || {}).name,
+      "task-arn": a.ecs.services[0] ? `arn:aws:ecs:${REGION}:${ACCOUNT}:task/${a.ecs.services[0].cluster}/${hexOf(`${a.ecs.services[0].name}stopped0`, 32)}` : null,
+      "secret-id": (a.secrets[0] || {}).name, table: (a.tables[0] || {}).name, "queue-url": (a.queues[0] || {}).url, "dist-id": (a.dists[0] || {}).id,
+      "pcx-id": (a.peerings[0] || {}).id, key: Object.keys((a.buckets[bucket] || { objects: {} }).objects)[0],
       "detector-id": hexOf("detector", 32), prefix: ((Object.keys((a.buckets[bucket] || { objects: {} }).objects)[0] || "").split("/")[0] || "") + "/", profile: b.profile || "default", alarm: (a.alarms[0] || {}).name, domain: "example.com", "trail": a.trail.name, "account-id": ACCOUNT
     };
     return cmd.replace(/<([a-z-]+)>/g, (m, k) => (values[k] ? values[k] : m));
@@ -3202,6 +3686,17 @@
       if (c !== "ok") return c;
       const r = t.alb ? a.albGet(t.alb, path, { kind: "internet", ip: LAPTOP }) : t.inst ? a.appGet(t.inst, path) : { code: 0 };
       return r.err || r.code;
+    } finally { a.session = saved; }
+  }
+  function fromLaptopHttps(a, host) {
+    const saved = a.session;
+    a.session = null;
+    try {
+      const t = target(a, host, 443);
+      if (t.err) return "does not resolve";
+      if (!t.cf) return "not CloudFront";
+      const r = a.cfGet(t.cf, host, "/");
+      return r.tls ? "certificate error" : r.code;
     } finally { a.session = saved; }
   }
   const said = (r) => (typeof r === "number" ? `HTTP ${r}` : r === "resolve" ? "does not resolve" : r === "timeout" ? "times out" : "connection refused");
@@ -4256,20 +4751,314 @@
       lesson: "Every KMS key has a key policy and nothing works without it, AdministratorAccess included. KMS also refuses a new policy that would lock you out, which is why the administrators' statement must stay.",
       tries: ["aws s3 cp s3://quest-kitchen-payments/settlements/2026-10-29.csv . --profile payments", "aws kms get-key-policy --key-id alias/payments --query Policy --output text"],
       edit: ["key-policy.json"], blanks: { bucket: "quest-kitchen-payments", role: "payments-app", profile: "payments" }
+    },
+
+    // Coverage round: CDN, peering, containers, data services, CORS, limits.
+    {
+      id: "cfcert", title: "CloudFront: certificate in the wrong Region", level: "21",
+      story: "The new marketing site at https://www.example.com fails with a certificate error. A certificate for www.example.com was issued in eu-west-1, where the rest of the app lives, but CloudFront will not take it. Someone also requested one in us-east-1 yesterday; it is still pending.",
+      goal: "Serve https://www.example.com from CloudFront with a valid certificate.",
+      done: "CloudFront serves www.example.com with a valid us-east-1 certificate.",
+      setup(a) {
+        a.addBucket("quest-kitchen-web", { objects: { "index.html": { body: "<!doctype html><title>Quest Kitchen</title><h1>Dinner, delivered</h1>" } } });
+        const d = a.addDist("www.example.com", "quest-kitchen-web");
+        d.aliases = [];
+        a.addCert("www.example.com", "eu-west-1", "ISSUED");
+        a.addCert("www.example.com", "us-east-1", "PENDING_VALIDATION");
+        const cfg = distConfig(a, d);
+        cfg.Aliases = { Quantity: 1, Items: ["www.example.com"] };
+        a.files["dist-config.json"] = pretty(cfg);
+      },
+      won: (a) => { const d = a.dists[0]; const c = a.certs.find((x) => x.arn === d.cert); return Boolean(c && c.region === "us-east-1" && c.status === "ISSUED" && d.status === "Deployed") && fromLaptopHttps(a, "www.example.com") === 200; },
+      check: (a) => ({ label: "curl https://www.example.com", text: String(fromLaptopHttps(a, "www.example.com")) }),
+      hints: [
+        "curl https://www.example.com, then aws acm list-certificates --region eu-west-1 and aws acm list-certificates --region us-east-1. CloudFront only uses certificates from us-east-1.",
+        "The us-east-1 certificate is PENDING_VALIDATION: aws acm describe-certificate --region us-east-1 --certificate-arn <arn> --query 'Certificate.DomainValidationOptions[0].ResourceRecord'. Create that CNAME in Route 53 (an UPSERT in a change batch file), and ACM issues it.",
+        "Then put its ARN in dist-config.json (ViewerCertificate: ACMCertificateArn, SSLSupportMethod sni-only, MinimumProtocolVersion TLSv1.2_2021, no CloudFrontDefaultCertificate) and: aws cloudfront update-distribution --id <id> --if-match <ETag from get-distribution-config> --distribution-config file://dist-config.json"
+      ],
+      lesson: "CloudFront is global and takes certificates only from ACM in us-east-1, whatever Region the rest of your app uses. DNS validation needs its CNAME record to stay in place; ACM uses it again for automatic renewal.",
+      tries: ["curl -I https://www.example.com", "aws acm list-certificates --region us-east-1"],
+      edit: ["dist-config.json"]
+    },
+    {
+      id: "cfcache", title: "CloudFront serves the old version", level: "21",
+      story: "Release 1.9 of the website was uploaded to S3 an hour ago, yet customers still see version 1.8. The S3 object is new; CloudFront keeps serving the copy it cached yesterday.",
+      goal: "Make CloudFront serve the new index.html.",
+      done: "CloudFront serves version 1.9.",
+      setup(a) {
+        const b = a.addBucket("quest-kitchen-web", { versioning: "Enabled" });
+        b.objects["index.html"] = [{ v: hexOf("web19", 32), size: 72, modified: START - HOUR, owner: ACCOUNT, body: "<!doctype html><title>Quest Kitchen 1.9</title>" },
+          { v: hexOf("web18", 32), size: 72, modified: START - 3 * DAY, owner: ACCOUNT, body: "<!doctype html><title>Quest Kitchen 1.8</title>" }];
+        const d = a.addDist("www.example.com", "quest-kitchen-web");
+        d.cert = a.addCert("www.example.com", "us-east-1", "ISSUED").arn;
+        d.cache["/index.html"] = { body: "<!doctype html><title>Quest Kitchen 1.8</title>", at: START - 11 * HOUR };
+      },
+      won: (a) => !a.dists[0].cache["/index.html"] || a.dists[0].cache["/index.html"].body.includes("1.9"),
+      check: (a) => ({ label: "www.example.com serves", text: (a.dists[0].cache["/index.html"] || { body: "1.9" }).body.includes("1.9") ? "version 1.9" : "version 1.8 (cached)" }),
+      hints: [
+        "curl -i https://www.example.com: look at X-Cache and Age. Then aws s3 cp s3://quest-kitchen-web/index.html - shows what the bucket holds.",
+        "The cache keeps the old copy until its TTL runs out. Uploading again changes nothing at the edge. Ask CloudFront to drop it: an invalidation.",
+        "aws cloudfront create-invalidation --distribution-id <id> --paths /index.html (or \"/*\"), then curl again once it completes."
+      ],
+      lesson: "CloudFront serves from cache until the TTL expires or you invalidate. For releases, give assets versioned file names (app.4f2a.js) with long TTLs, keep index.html short-lived, and invalidate only the entry points.",
+      tries: ["curl -i https://www.example.com", "aws cloudfront list-distributions --query 'DistributionList.Items[].[Id,DomainName]' --output text"]
+    },
+    {
+      id: "peering", title: "VPC peering: no route back", level: "04",
+      story: "The analytics team peered their VPC (10.20.0.0/16) with ours so the web servers can read from analytics-db. The peering is active and our route table points at it, but connections from web-1 time out.",
+      goal: "Let web-1 reach analytics-db on port 5432 over the peering, without opening the database to the internet.",
+      done: "web-1 reaches analytics-db over the peering.",
+      setup(a) {
+        const vpc = rid("vpc", "analytics");
+        a.vpcs.push({ id: vpc, name: "analytics", cidr: "10.20.0.0/16" });
+        a.subnets.push({ id: SUB("analytics-a"), name: "analytics-a", cidr: "10.20.1.0/24", az: "us-east-1a", vpc, mapPublic: false });
+        const pcx = { id: rid("pcx", "kitchen-analytics"), name: "kitchen-analytics", a: a.vpcs[0].id, b: vpc, status: "active" };
+        a.peerings.push(pcx);
+        a.rts.push({ id: rid("rtb", "analytics"), name: "analytics-rt", vpc, subnets: [SUB("analytics-a")], routes: [{ dest: "10.20.0.0/16", target: "local" }] });
+        a.rt("private-rt").routes.push({ dest: "10.20.0.0/16", target: pcx.id });
+        const g = a.addSg("analytics-db-sg", "Analytics database", [{ proto: "tcp", from: 5432, to: 5432, cidr: "10.0.0.0/16", desc: "kitchen VPC" }]);
+        g.vpc = vpc;
+        a.addInstance({ name: "analytics-db", type: "t3.medium", subnet: "analytics-a", sgs: ["analytics-db-sg"], ip: "10.20.1.15", app: "pgsql" });
+      },
+      won: (a) => a.connect(a.inst("web-1"), a.inst("analytics-db"), 5432) === "ok" && !worldOpen(a, "analytics-db-sg"),
+      check: (a) => ({ label: "web-1 → analytics-db:5432", text: a.connect(a.inst("web-1"), a.inst("analytics-db"), 5432) === "ok" ? "connects" : "times out" }),
+      hints: [
+        `aws ssm start-session --target ${II("web-1")}, then nc -vz 10.20.1.15 5432, then exit. aws ec2 describe-vpc-peering-connections shows the peering is active.`,
+        "Routing must work in both directions. Our private-rt sends 10.20.0.0/16 to the peering; does analytics-rt send 10.0.0.0/16 back? aws ec2 describe-route-tables --filters Name=tag:Name,Values=analytics-rt",
+        `aws ec2 create-route --route-table-id ${rid("rtb", "analytics")} --destination-cidr-block 10.0.0.0/16 --vpc-peering-connection-id ${rid("pcx", "kitchen-analytics")}`
+      ],
+      lesson: "A peering connection carries nothing until both sides route the other's CIDR to it, and the security groups allow it. Peering needs non-overlapping CIDRs and is not transitive; for many VPCs, use a Transit Gateway.",
+      tries: ["aws ec2 describe-vpc-peering-connections", "aws ec2 describe-route-tables --query 'RouteTables[].[Tags[0].Value,Routes[].DestinationCidrBlock]' --output text"],
+      blanks: { instance: "web-1", rtb: "analytics-rt", sg: "analytics-db-sg" }
+    },
+    {
+      id: "ecsnetwork", title: "ECS task cannot reach ECR", level: "19",
+      story: "The new orders-worker service on Fargate never starts: every task stops after a minute with ResourceInitializationError. The tasks run in the private subnets, which have no NAT gateway; security wants AWS traffic to stay private.",
+      goal: "Get orders-worker running in the private subnets, without a NAT gateway or public IPs.",
+      done: "orders-worker runs, pulling its image through VPC endpoints.",
+      setup(a) {
+        a.nats = [];
+        a.eips = [];
+        a.rt("private-rt").routes = a.rt("private-rt").routes.filter((r) => r.target === "local");
+        a.addSg("worker-sg", "orders-worker tasks", []);
+        a.addRole("ecsTaskExecutionRole", trustService("ecs-tasks.amazonaws.com"), [awsPolicyArn("service-role/AmazonECSTaskExecutionRolePolicy")]);
+        a.addRole("orders-worker-task", trustService("ecs-tasks.amazonaws.com"), []);
+        a.ecs.taskDefs["orders-worker:7"] = { family: "orders-worker", revision: 7, executionRole: iamArn("role", "ecsTaskExecutionRole"), taskRole: iamArn("role", "orders-worker-task"), image: `${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/orders-worker:1.4.2` };
+        a.ecs.services.push({ name: "orders-worker", cluster: "kitchen", taskDef: "orders-worker:7", desired: 2, subnets: ["private-a", "private-b"], sgs: ["worker-sg"], publicIp: false });
+      },
+      won: (a) => a.ecsRunning(a.ecs.services[0]) === 2 && !a.nats.some((n) => n.state === "available" || n.state === "pending") && !a.ecs.services[0].publicIp,
+      check: (a) => ({ label: "orders-worker running / desired", text: `${a.ecsRunning(a.ecs.services[0])} / ${a.ecs.services[0].desired}` }),
+      hints: [
+        "aws ecs list-tasks --cluster kitchen --desired-status STOPPED, then aws ecs describe-tasks --cluster kitchen --tasks <task ARN> --query 'tasks[].stoppedReason'",
+        "dial tcp ...:443: i/o timeout to api.ecr means the task has no path to ECR. Without NAT, private subnets reach ECR through interface endpoints for ecr.api and ecr.dkr, and the image layers through a gateway endpoint for S3.",
+        `aws ec2 create-vpc-endpoint --vpc-id ${rid("vpc", "kitchen")} --vpc-endpoint-type Interface --service-name com.amazonaws.us-east-1.ecr.api (the same for ecr.dkr), then aws ec2 create-vpc-endpoint --vpc-id ${rid("vpc", "kitchen")} --service-name com.amazonaws.us-east-1.s3 --route-table-ids ${rid("rtb", "private")}, then aws ecs update-service --cluster kitchen --service orders-worker --force-new-deployment`
+      ],
+      lesson: "Fargate pulls images through the task's own network interface. In a private subnet it needs a NAT gateway or VPC endpoints: ecr.api and ecr.dkr for the registry and S3 for the layers (plus logs for CloudWatch Logs). A public IP helps only in a subnet routed to an internet gateway.",
+      tries: ["aws ecs describe-services --cluster kitchen --services orders-worker --query 'services[].[desiredCount,runningCount,events[0].message]'", "aws ecs list-tasks --cluster kitchen --desired-status STOPPED"]
+    },
+    {
+      id: "ecsrole", title: "ECS task: execution role cannot pull", level: "19",
+      story: "After a cleanup of IAM policies, the orders-worker tasks stop at start-up. The developer already gave the task's role ECR read access, and nothing changed.",
+      goal: "Get orders-worker running, with ECR access on the role that needs it.",
+      done: "orders-worker runs; the execution role can pull images.",
+      setup(a) {
+        a.addSg("worker-sg", "orders-worker tasks", []);
+        a.addRole("ecsTaskExecutionRole", trustService("ecs-tasks.amazonaws.com"), [], { logs: doc({ Effect: "Allow", Action: ["logs:CreateLogStream", "logs:PutLogEvents"], Resource: "*" }) });
+        a.addRole("orders-worker-task", trustService("ecs-tasks.amazonaws.com"), [awsPolicyArn("AmazonEC2ContainerRegistryReadOnly")]);
+        a.ecs.taskDefs["orders-worker:7"] = { family: "orders-worker", revision: 7, executionRole: iamArn("role", "ecsTaskExecutionRole"), taskRole: iamArn("role", "orders-worker-task"), image: `${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/orders-worker:1.4.2` };
+        a.ecs.services.push({ name: "orders-worker", cluster: "kitchen", taskDef: "orders-worker:7", desired: 2, subnets: ["private-a", "private-b"], sgs: ["worker-sg"], publicIp: false });
+      },
+      won: (a) => a.ecsRunning(a.ecs.services[0]) === 2 && !a.can(a.role("orders-worker-task"), "iam:PassRole", "*") && !a.iam.roles["ecsTaskExecutionRole"].attached.includes(awsPolicyArn("AdministratorAccess")),
+      check: (a) => ({ label: "orders-worker running / desired", text: `${a.ecsRunning(a.ecs.services[0])} / ${a.ecs.services[0].desired}` }),
+      hints: [
+        "aws ecs list-tasks --cluster kitchen --desired-status STOPPED, then describe-tasks for the stoppedReason. Whose role is named in the AccessDeniedException?",
+        "Two roles: the task execution role is what ECS (the agent) uses to pull the image and write logs; the task role is what your code uses. aws ecs describe-task-definition --task-definition orders-worker:7 --query 'taskDefinition.[executionRoleArn,taskRoleArn]'",
+        "aws iam attach-role-policy --role-name ecsTaskExecutionRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy, then aws ecs update-service --cluster kitchen --service orders-worker --force-new-deployment"
+      ],
+      lesson: "ECS pulls images and fetches secrets with the task execution role, before your container starts; the task role is only for your application's own AWS calls. Permissions on the wrong one never help.",
+      tries: ["aws ecs list-tasks --cluster kitchen --desired-status STOPPED", "aws ecs describe-task-definition --task-definition orders-worker:7 --query 'taskDefinition.[executionRoleArn,taskRoleArn]'"],
+      blanks: { role: "ecsTaskExecutionRole" }
+    },
+    {
+      id: "eksauth", title: "kubectl: You must be logged in (Unauthorized)", level: "19",
+      story: "The on-call engineers cannot use kubectl on kitchen-eks: every command says Unauthorized. The cluster was created by a CI role that has since been deleted, so nobody has access.",
+      goal: "Give the OnCall role read-only access to the cluster with an EKS access entry.",
+      done: "OnCall can read the cluster, and only read it.",
+      setup(a) {
+        a.addRole("OnCall", { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Federated: `arn:aws:iam::${ACCOUNT}:saml-provider/QuestKitchenSSO` }, Action: "sts:AssumeRoleWithSAML" }] }, [awsPolicyArn("ReadOnlyAccess")],
+          { eks: doc({ Effect: "Allow", Action: ["eks:DescribeCluster", "eks:ListClusters"], Resource: "*" }) });
+        a.profiles.oncall = { sso: true, role: "OnCall", session: "you" };
+        a.eks = { name: "kitchen-eks", authMode: "API_AND_CONFIG_MAP", entries: [{ principal: iamArn("role", "ci-cluster-bootstrap"), policies: [{ arn: eksPolicyArn("AmazonEKSClusterAdminPolicy"), scope: "cluster", namespaces: [] }], at: START - 200 * DAY }] };
+      },
+      won(a) {
+        const p = iamArn("role", "OnCall");
+        return a.kubeCan(p, "list", "default") === "yes" && a.kubeCan(p, "delete", "default") !== "yes" && a.kubeCan(p, "list", "kube-system") === "yes";
+      },
+      check: (a) => ({ label: "OnCall: kubectl get pods -A", text: { yes: "allowed", forbidden: "Forbidden", unauthorized: "Unauthorized" }[a.kubeCan(iamArn("role", "OnCall"), "list", null)] }),
+      hints: [
+        "aws eks update-kubeconfig --name kitchen-eks --profile oncall, then kubectl get pods. Then aws eks describe-cluster --name kitchen-eks --query cluster.accessConfig",
+        "IAM permissions let you call the EKS API; inside the cluster, Kubernetes asks the access entries. aws eks list-access-entries --cluster-name kitchen-eks: only the deleted CI role is there.",
+        `aws eks create-access-entry --cluster-name kitchen-eks --principal-arn arn:aws:iam::${ACCOUNT}:role/OnCall, then aws eks associate-access-policy --cluster-name kitchen-eks --principal-arn arn:aws:iam::${ACCOUNT}:role/OnCall --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy --access-scope type=cluster`
+      ],
+      lesson: "Unauthorized means Kubernetes did not recognise the identity; Forbidden means it did, but RBAC said no. With EKS access entries, an administrator grants cluster access through the EKS API, so losing the cluster creator no longer locks everyone out.",
+      tries: ["aws eks update-kubeconfig --name kitchen-eks --profile oncall", "kubectl get pods"]
+    },
+    {
+      id: "secretrotation", title: "Secret rotation broke the app", level: "20",
+      story: "Rotation was switched on for the orders database secret last night. This morning orders-api fails with: password authentication failed for user \"orders_app\". Its configuration has the password pasted in an environment variable.",
+      goal: "Make orders-api read the password from Secrets Manager at run time, with access to that one secret only.",
+      done: "orders-api reads the current password from Secrets Manager.",
+      setup(a) {
+        const s = { name: "prod/orders/db", arn: `arn:aws:secretsmanager:${REGION}:${ACCOUNT}:secret:prod/orders/db-${blob("sfx", 6)}`, version: 1, rotation: true, rotated: START - 9 * HOUR };
+        a.secrets.push(s);
+        a.addSg("lambda-sg", "orders-api function", []);
+        a.sg("db-sg").in.push({ proto: "tcp", from: 5432, to: 5432, sg: SGI("lambda-sg"), desc: "from orders-api" });
+        a.addRole("orders-api-role", trustService("lambda.amazonaws.com"), [awsPolicyArn("AWSLambdaVPCAccessExecutionRole")]);
+        const old = JSON.parse(a.secretValue({ ...s, version: 0 })).password;
+        a.addLambda({ name: "orders-api", role: "orders-api-role", timeout: 10, memory: 256, env: { DB_HOST: a.dbHost(a.db("orders-db")), DB_USER: "orders_app", DB_PASSWORD: old },
+          vpc: { subnets: ["private-a", "private-b"], sgs: ["lambda-sg"], ip: "10.0.12.77" }, needs: { db: "orders-db", secret: "prod/orders/db" } });
+        invoke(a, a.fn("orders-api"));
+      },
+      won(a) {
+        const f = a.fn("orders-api"), s = a.secrets[0];
+        const can = (arn) => evaluate(a, a.role("orders-api-role", "orders-api"), "secretsmanager:GetSecretValue", arn).allowed;
+        return f.env.DB_PASSWORD === undefined && [s.name, s.arn].includes(f.env.SECRET_ID) && can(s.arn) && !can(`arn:aws:secretsmanager:${REGION}:${ACCOUNT}:secret:prod/payments/api-AbCdEf`);
+      },
+      check: (a) => ({ label: "orders-api database login", text: a.fn("orders-api").env.DB_PASSWORD !== undefined ? "password pasted in configuration" : a.fn("orders-api").env.SECRET_ID ? "reads Secrets Manager" : "no credentials" }),
+      hints: [
+        "aws lambda invoke --function-name orders-api out.json; cat out.json. Then aws secretsmanager describe-secret --secret-id prod/orders/db: when did it last rotate?",
+        "A pasted password is a copy that rotation cannot update. The app's code reads the secret named in SECRET_ID if DB_PASSWORD is absent; its role also needs secretsmanager:GetSecretValue on that secret.",
+        "aws iam put-role-policy --role-name orders-api-role --policy-name read-db-secret --policy-document '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"secretsmanager:GetSecretValue\",\"Resource\":\"<secret ARN>\"}]}', then aws lambda update-function-configuration --function-name orders-api --environment 'Variables={DB_HOST=<host>,DB_USER=orders_app,SECRET_ID=prod/orders/db}'"
+      ],
+      lesson: "Rotation changes the password in the database and in the secret, nowhere else. Applications must read the secret at run time (and cache it briefly), never hold a copy in configuration; pasting the new password back in only lasts until the next rotation.",
+      tries: ["aws lambda invoke --function-name orders-api out.json", "aws secretsmanager describe-secret --secret-id prod/orders/db"]
+    },
+    {
+      id: "dynamothrottle", title: "DynamoDB ProvisionedThroughputExceeded", level: "20",
+      story: "Lunchtime orders fail to save. The orders-ingest function logs ProvisionedThroughputExceededException. The orders table was created with 5 write capacity units two years ago; lunch now brings about 40 writes a second.",
+      goal: "Let the orders table take lunchtime writes.",
+      done: "The orders table keeps up with the writes.",
+      setup(a) {
+        a.tables.push({ name: "orders", mode: "PROVISIONED", rcu: 5, wcu: 5, writes: 40, status: "ACTIVE" });
+        a.metrics["AWS/DynamoDB:WriteThrottleEvents"] = (x) => (x.throttled(x.tables[0]) ? 1840 : 0);
+        a.metrics["AWS/DynamoDB:ConsumedWriteCapacityUnits"] = (x) => Math.min(x.tables[0].mode === "PROVISIONED" ? x.tables[0].wcu : 40, 40) * 60;
+        a.addRole("ingest-role", trustService("lambda.amazonaws.com"), [], { "write-orders": doc({ Effect: "Allow", Action: ["dynamodb:PutItem"], Resource: `arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/orders` }) });
+        a.addLambda({ name: "orders-ingest", role: "ingest-role", timeout: 10, memory: 256, needs: { table: "orders" } });
+        invoke(a, a.fn("orders-ingest"));
+      },
+      won: (a) => !a.throttled(a.tables[0]) && a.tables[0].status !== "DELETED",
+      check: (a) => ({ label: "orders table writes", text: a.tables[0].mode === "PAY_PER_REQUEST" ? "on-demand, not throttled" : `${a.tables[0].wcu} WCU for 40 writes/s${a.throttled(a.tables[0]) ? ": throttled" : ""}` }),
+      hints: [
+        "aws lambda invoke --function-name orders-ingest out.json; cat out.json. Then aws dynamodb describe-table --table-name orders --query 'Table.[BillingModeSummary,ProvisionedThroughput]'",
+        "One write capacity unit is one write per second (up to 1 KB). Five cannot take forty. Read capacity is a different budget.",
+        "aws dynamodb update-table --table-name orders --billing-mode PAY_PER_REQUEST (or raise WriteCapacityUnits to at least 40 with --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=50)"
+      ],
+      lesson: "Provisioned tables throttle once writes pass their WCU (burst capacity hides it for a while). Use on-demand for spiky or unknown traffic, or provisioned capacity with auto scaling for steady load; the SDK's retries only delay the error.",
+      tries: ["aws lambda invoke --function-name orders-ingest out.json", "aws dynamodb describe-table --table-name orders --query 'Table.[BillingModeSummary,ProvisionedThroughput]'"]
+    },
+    {
+      id: "sqsdupes", title: "SQS: every email sent twice", level: "20",
+      story: "Customers get two or three confirmation emails per order. The email worker takes about 90 seconds per message (it renders a PDF), and its log shows the same orders processed more than once.",
+      goal: "Stop the duplicates, without losing messages.",
+      done: "Messages stay hidden long enough to be processed once.",
+      setup(a) {
+        a.queues.push({ name: "order-emails", url: `https://sqs.${REGION}.amazonaws.com/${ACCOUNT}/order-emails`, visibility: 30, retention: 345600, depth: 214, inflight: 37, modified: START - 90 * DAY, dlq: "order-emails-dlq" });
+        a.queues.push({ name: "order-emails-dlq", url: `https://sqs.${REGION}.amazonaws.com/${ACCOUNT}/order-emails-dlq`, visibility: 30, retention: 1209600, depth: 0, inflight: 0, modified: START - 90 * DAY });
+        const g = a.addLogGroup("/app/email-worker", { gb: 3, ingestGb: 1, retention: 30 });
+        for (const [s, n] of [[0, 1], [31, 2], [62, 3]]) g.lines.push([START - 10 * 60e3 + s * 1000, `order 1042: rendering confirmation (receive count ${n})`]);
+        g.lines.push([START - 10 * 60e3 + 90e3, "order 1042: email sent"], [START - 10 * 60e3 + 121e3, "order 1042: email sent"], [START - 10 * 60e3 + 152e3, "order 1042: email sent"]);
+      },
+      won: (a) => a.queues[0].visibility > 90 && !a.queues[0].purged,
+      check: (a) => ({ label: "Visibility timeout / processing time", text: `${a.queues[0].visibility} s / 90 s` }),
+      hints: [
+        "aws logs tail /app/email-worker: the same order is received again every 30 seconds. aws sqs get-queue-url --queue-name order-emails",
+        "aws sqs get-queue-attributes --queue-url <url> --attribute-names VisibilityTimeout. A received message reappears when its visibility timeout ends before the worker deletes it.",
+        "aws sqs set-queue-attributes --queue-url <url> --attributes VisibilityTimeout=180"
+      ],
+      lesson: "SQS hides a received message for the visibility timeout; if processing takes longer, another consumer gets it too. Set the timeout well above the slowest processing time (six times a Lambda consumer's timeout), and make consumers idempotent, because standard queues deliver at least once.",
+      tries: ["aws logs tail /app/email-worker", "aws sqs get-queue-url --queue-name order-emails"]
+    },
+    {
+      id: "s3cors", title: "S3 CORS error in the browser", level: "09",
+      story: "The new menu page at https://shop.example.com fetches menu.json from S3 with a presigned URL. The browser console says: Access to fetch at 'https://quest-kitchen-media.s3.us-east-1.amazonaws.com/menu.json' from origin 'https://shop.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      goal: "Allow https://shop.example.com, and only it, to read from quest-kitchen-media in the browser.",
+      done: "The browser may read the bucket from https://shop.example.com.",
+      setup(a) {
+        a.addBucket("quest-kitchen-media", { objects: { "menu.json": { body: "{\"dishes\":[\"ramen\",\"bibimbap\"]}" } } });
+        a.files["cors.json"] = pretty({ CORSRules: [{ AllowedOrigins: ["https://example.com"], AllowedMethods: ["GET"], AllowedHeaders: ["*"], MaxAgeSeconds: 3000 }] });
+      },
+      won(a) {
+        const rules = a.buckets["quest-kitchen-media"].cors || [];
+        const allows = (origin) => rules.some((r) => asList(r.AllowedOrigins).some((x) => glob(x, origin)) && asList(r.AllowedMethods).includes("GET"));
+        return allows("https://shop.example.com") && !allows("https://evil.example.net") && !a.isPublic(a.buckets["quest-kitchen-media"]);
+      },
+      check: (a) => ({ label: "Fetch from https://shop.example.com", text: (a.buckets["quest-kitchen-media"].cors || []).some((r) => asList(r.AllowedOrigins).some((x) => glob(x, "https://shop.example.com")) && asList(r.AllowedMethods).includes("GET")) ? "allowed by CORS" : "blocked by CORS" }),
+      hints: [
+        "aws s3 presign s3://quest-kitchen-media/menu.json, then curl -i -H 'Origin: https://shop.example.com' '<the URL>'. The object comes back, but without Access-Control-Allow-Origin.",
+        "aws s3api get-bucket-cors --bucket quest-kitchen-media. CORS is not about permission to the object (the presigned URL has that); it tells the browser which other sites may read the response. cors.json has the wrong origin.",
+        "Set AllowedOrigins to [\"https://shop.example.com\"] in cors.json, then aws s3api put-bucket-cors --bucket quest-kitchen-media --cors-configuration file://cors.json"
+      ],
+      lesson: "A CORS error is the browser protecting users, not S3 refusing access: the request often succeeds and the browser throws the answer away. Allow exactly the origins and methods your site uses; \"*\" lets any site read the response in its visitors' browsers.",
+      tries: ["aws s3api get-bucket-cors --bucket quest-kitchen-media", "aws s3 presign s3://quest-kitchen-media/menu.json"],
+      edit: ["cors.json"], blanks: { bucket: "quest-kitchen-media" }
+    },
+    {
+      id: "rdsrefused", title: "RDS connection refused", level: "11",
+      story: "orders-api was moved to PostgreSQL from the MySQL template in AWS/RDS. It now fails at once with connect ECONNREFUSED. The database is available and its security group allows the function.",
+      goal: "Make orders-api connect to orders-db.",
+      done: "orders-api connects on the database's port.",
+      setup(a) {
+        a.addSg("lambda-sg", "orders-api function", []);
+        a.sg("db-sg").in.push({ proto: "tcp", from: 3306, to: 3306, sg: SGI("lambda-sg"), desc: "from orders-api (MySQL)" }, { proto: "tcp", from: 5432, to: 5432, sg: SGI("lambda-sg"), desc: "from orders-api" });
+        a.addRole("orders-api-role", trustService("lambda.amazonaws.com"), [awsPolicyArn("AWSLambdaVPCAccessExecutionRole")]);
+        a.addLambda({ name: "orders-api", role: "orders-api-role", timeout: 10, memory: 256, env: { DB_HOST: a.dbHost(a.db("orders-db")), DB_PORT: "3306" },
+          vpc: { subnets: ["private-a", "private-b"], sgs: ["lambda-sg"], ip: "10.0.12.77" }, needs: { db: "orders-db" } });
+        invoke(a, a.fn("orders-api"));
+      },
+      won: (a) => a.connect(a.lambdaEp(a.fn("orders-api")), a.dbEp(a.db("orders-db")), Number(a.fn("orders-api").env.DB_PORT || 5432)) === "ok" && !broadCidr(a, "db-sg"),
+      check: (a) => ({ label: "orders-api → orders-db", text: `port ${a.fn("orders-api").env.DB_PORT || 5432}: ${a.connect(a.lambdaEp(a.fn("orders-api")), a.dbEp(a.db("orders-db")), Number(a.fn("orders-api").env.DB_PORT || 5432))}` }),
+      hints: [
+        "aws lambda invoke --function-name orders-api out.json; cat out.json. ECONNREFUSED means the packets arrived and nothing listened: not a security group.",
+        "aws rds describe-db-instances --query 'DBInstances[].[Engine,Endpoint.Port,DBInstanceStatus]' and aws lambda get-function-configuration --function-name orders-api --query Environment",
+        "aws lambda update-function-configuration --function-name orders-api --environment 'Variables={DB_HOST=<host>,DB_PORT=5432}' (and revoke the leftover 3306 rule from db-sg)"
+      ],
+      lesson: "Refused is an answer from the host: the path is open and the port is wrong or the database is restarting. Read the port from the endpoint (5432 for PostgreSQL, 3306 for MySQL) rather than from a template.",
+      tries: ["aws lambda invoke --function-name orders-api out.json", "aws rds describe-db-instances --query 'DBInstances[].[Engine,Endpoint.Port,DBInstanceStatus]'"]
+    },
+    {
+      id: "throttling", title: "API throttling: RequestLimitExceeded", level: "14",
+      story: "The nightly inventory script calls DescribeInstances across 84 account and Region pairs with 32 parallel jobs. Most nights it now dies with RequestLimitExceeded.",
+      goal: "Make the inventory finish reliably.",
+      done: "The inventory finishes, with retries that back off.",
+      setup(a) {
+        a.files["inventory.sh"] = "#!/usr/bin/env bash\n# Writes every instance in every account and Region to inventory.csv\nsource inventory.conf\nparallel -j \"$PARALLEL\" aws ec2 describe-instances --profile {1} --region {2} ::: $ACCOUNTS ::: $REGIONS\n";
+        a.files["inventory.conf"] = "PARALLEL=32\nACCOUNTS=\"prod staging dev ... (14 profiles)\"\nREGIONS=\"us-east-1 us-west-2 eu-west-1 eu-central-1 ap-south-1 ap-southeast-2\"\n";
+      },
+      won: (a) => { inventory(a); return a.inventoryOk; },
+      check: (a) => { const p = a.profiles.default || {}; return { label: "retry mode / attempts", text: `${a.env.AWS_RETRY_MODE || p.retry_mode || "legacy"} / ${a.env.AWS_MAX_ATTEMPTS || p.max_attempts || "default"}` }; },
+      hints: [
+        "./inventory.sh, then read the error: (reached max retries: 4): Request limit exceeded. EC2 throttles per account and Region.",
+        "Retrying the same way at the same speed fails the same way. The CLI and SDKs can back off: the adaptive retry mode slows down when it sees throttling. aws configure list shows nothing about retries yet.",
+        "export AWS_RETRY_MODE=adaptive AWS_MAX_ATTEMPTS=10 (or aws configure set retry_mode adaptive and aws configure set max_attempts 10), then ./inventory.sh. Lowering PARALLEL in inventory.conf also helps."
+      ],
+      lesson: "Throttling (ThrottlingException, RequestLimitExceeded, Rate exceeded) means slow down. Use the standard or adaptive retry modes with enough attempts, cap parallelism, and prefer events and caches to polling.",
+      tries: ["./inventory.sh", "cat inventory.conf"],
+      edit: ["inventory.conf"]
     }
   ];
 
   // Easiest first within each group.
   const GROUPS = [
     ["IAM and access", ["expired", "s3list", "trust", "passrole", "explicitdeny", "scp", "oidc"]],
-    ["Networking", ["sgweb", "nopublicip", "routeigw", "nacl", "nat"]],
+    ["Networking", ["sgweb", "nopublicip", "routeigw", "nacl", "nat", "peering"]],
     ["Compute", ["stopped", "statuscheck", "capacity", "vcpu", "asgmax", "lambdatimeout", "throttled"]],
-    ["Storage", ["bucketexists", "undelete", "nosuchbucket", "publicbucket", "ownership"]],
-    ["Databases", ["rdsbackup", "rdsstorage", "lambdards", "rdspublic", "rdsupgrade"]],
-    ["Load balancing and DNS", ["alb503", "alb502", "alb504", "healthpath", "r53record", "r53ns"]],
-    ["Observability", ["cloudtrail", "alarmnoaction", "asgalarm"]],
+    ["Storage", ["bucketexists", "undelete", "nosuchbucket", "publicbucket", "ownership", "s3cors"]],
+    ["Containers", ["ecsrole", "ecsnetwork", "eksauth"]],
+    ["Databases and messaging", ["rdsbackup", "rdsstorage", "rdsrefused", "lambdards", "rdspublic", "rdsupgrade", "dynamothrottle", "sqsdupes"]],
+    ["Load balancing, CDN and DNS", ["alb503", "alb502", "alb504", "healthpath", "r53record", "r53ns", "cfcache", "cfcert"]],
+    ["Observability and limits", ["cloudtrail", "alarmnoaction", "asgalarm", "throttling"]],
     ["Cost", ["eipidle", "ebsforgotten", "logretention", "natcost", "s3versions"]],
-    ["Security", ["sshworld", "imdsv1", "leakedkey", "rootkeys", "kmsdecrypt"]]
+    ["Security", ["sshworld", "imdsv1", "leakedkey", "rootkeys", "kmsdecrypt", "secretrotation"]]
   ];
   const ORDER = GROUPS.flatMap(([, ids]) => ids);
   SCENARIOS.sort((x, y) => ORDER.indexOf(x.id) - ORDER.indexOf(y.id));
