@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Common AWS errors and how to fix them · AWS Quest</title>
+  <meta name="description" content="What common AWS errors mean and how to fix them: AccessDenied, ExpiredToken, UnauthorizedOperation, iam:PassRole, connection timeouts, ALB 502/503/504, NoSuchBucket, KMS AccessDeniedException, Lambda timeouts and more.">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Common AWS errors and how to fix them">
+  <meta property="og:description" content="Each AWS error with its exact text, cause, how to confirm, the fix and how to prevent it.">
+  <meta property="og:url" content="https://sandeepkomal.github.io/AWS/problems.html">
+  <link rel="canonical" href="https://sandeepkomal.github.io/AWS/problems.html">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+</head>
+<body>
+<main class="wrap problems">
+<p class="eyebrow"><a href="index.html">AWS Quest</a></p>
+<h1>Common AWS errors and how to fix them</h1>
+<p class="lede">39 problems, each with the exact error text, what it means, the likely causes, how to confirm, the fix and how to prevent it. To search by pasting an error, use the <a href="index.html#doctor">interactive version</a>.</p>
+<nav class="card problems-index" aria-label="Problems">
+<h2>Credentials and identity</h2>
+<ul><li><a href="#expired-token">ExpiredToken: the security token included in the request is expired</a></li><li><a href="#invalid-client-token-id">InvalidClientTokenId: the security token included in the request is invalid</a></li><li><a href="#signature-mismatch">SignatureDoesNotMatch</a></li><li><a href="#unable-to-locate-credentials">Unable to locate credentials</a></li><li><a href="#sso-token-expired">Error when retrieving token from sso: Token has expired and refresh failed</a></li></ul>
+<h2>Permissions</h2>
+<ul><li><a href="#access-denied-identity">AccessDenied: no identity-based policy allows the action</a></li><li><a href="#access-denied-explicit">AccessDenied with an explicit deny</a></li><li><a href="#unauthorized-operation-encoded">UnauthorizedOperation with an encoded authorization failure message</a></li><li><a href="#passrole">Not authorized to perform iam:PassRole</a></li><li><a href="#assume-role-denied">AccessDenied when calling AssumeRole</a></li><li><a href="#web-identity-denied">Not authorized to perform sts:AssumeRoleWithWebIdentity</a></li><li><a href="#scp-denied">Explicit deny in a service control policy</a></li><li><a href="#kms-access-denied">KMS AccessDeniedException: no resource-based policy allows kms:Decrypt</a></li></ul>
+<h2>Networking</h2>
+<ul><li><a href="#connection-timed-out">Connection timed out to an EC2 instance</a></li><li><a href="#connection-refused">Connection refused</a></li><li><a href="#nat-no-internet">Private instance cannot reach the internet</a></li><li><a href="#ssm-not-connected">TargetNotConnected when starting a Session Manager session</a></li></ul>
+<h2>EC2 and Auto Scaling</h2>
+<ul><li><a href="#insufficient-capacity">InsufficientInstanceCapacity</a></li><li><a href="#vcpu-limit">VcpuLimitExceeded</a></li><li><a href="#status-check-failed">Status check failed (1/2 or 0/2 checks passed)</a></li><li><a href="#asg-not-scaling">Auto Scaling group does not scale</a></li><li><a href="#incorrect-instance-state">IncorrectInstanceState</a></li></ul>
+<h2>S3</h2>
+<ul><li><a href="#no-such-bucket">NoSuchBucket: the specified bucket does not exist</a></li><li><a href="#bucket-already-exists">BucketAlreadyExists</a></li><li><a href="#s3-403-forbidden">403 Forbidden on HeadObject or GetObject</a></li><li><a href="#illegal-location-constraint">IllegalLocationConstraintException</a></li><li><a href="#no-such-key">NoSuchKey, or an object that vanished</a></li></ul>
+<h2>Load balancing and DNS</h2>
+<ul><li><a href="#elb-502">502 Bad Gateway from a load balancer</a></li><li><a href="#elb-503">503 Service Temporarily Unavailable from a load balancer</a></li><li><a href="#elb-504">504 Gateway Time-out from a load balancer</a></li><li><a href="#target-unhealthy">Targets unhealthy: health checks failed</a></li><li><a href="#dns-servfail">Domain does not resolve: SERVFAIL</a></li><li><a href="#dns-old-address">Route 53 record points at the wrong place</a></li></ul>
+<h2>Databases and serverless</h2>
+<ul><li><a href="#rds-timeout">Connection timed out to RDS</a></li><li><a href="#rds-refused">Connection refused to RDS</a></li><li><a href="#rds-storage-full">RDS storage-full, No space left on device</a></li><li><a href="#lambda-timeout">Lambda: Task timed out after 3.00 seconds</a></li><li><a href="#lambda-throttled">Lambda: TooManyRequestsException, Rate Exceeded</a></li></ul>
+<h2>Throttling and limits</h2>
+<ul><li><a href="#throttling">ThrottlingException: Rate exceeded</a></li></ul>
+</nav>
+<section class="card problem" id="expired-token">
+<h3>ExpiredToken: the security token included in the request is expired</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (ExpiredToken) when calling the GetCallerIdentity operation: The security token included in the request is expired</code></pre>
+<h4>What it means</h4>
+<p>The temporary credentials the CLI sent (from assume-role, SSO or an instance role) have passed their expiry time.</p>
+<h4>Likely causes</h4>
+<ul><li>Old AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN left in the environment</li><li>An SSO session that has run out</li><li>A long job outliving a one-hour role session</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws configure list
+env | grep AWS_</code></pre>
+<h4>Fix</h4>
+<ul><li>Unset the stale variables: <code>unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN</code></li><li>Sign in again: <code>aws sso login --profile &lt;profile&gt;</code></li><li>For long jobs, let the SDK refresh credentials from a profile or role instead of pasting them</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Use profiles with SSO or role_arn, not pasted session variables</li><li>Raise the role's MaxSessionDuration if jobs legitimately run longer</li></ul>
+<p class="note">Practise it: <a href="index.html#play/expired">ExpiredToken</a> · Learn it: <a href="index.html#level-00">Level 00 · Accounts, Regions and the CLI</a> · <a href="index.html#fix/expired-token">Open in the site</a></p>
+</section>
+<section class="card problem" id="invalid-client-token-id">
+<h3>InvalidClientTokenId: the security token included in the request is invalid</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.
+An error occurred (InvalidAccessKeyId) when calling the ListBuckets operation: The AWS Access Key Id you provided does not exist in our records.</code></pre>
+<h4>What it means</h4>
+<p>AWS does not recognise the access key ID: it was deleted, deactivated, mistyped, or is a session key sent without its session token.</p>
+<h4>Likely causes</h4>
+<ul><li>The key was deleted or set Inactive</li><li>A session key (ASIA...) without AWS_SESSION_TOKEN</li><li>Calling an opt-in Region that is not enabled for the account</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws configure list
+aws iam list-access-keys --user-name &lt;user&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Use a profile with valid credentials (<code>--profile</code>), or create a new key for the user</li><li>Set AWS_SESSION_TOKEN alongside session keys</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Prefer roles and SSO to long-lived access keys</li></ul>
+<p class="note">Practise it: <a href="index.html#play/rootkeys">Root user access keys</a> · Learn it: <a href="index.html#level-00">Level 00 · Accounts, Regions and the CLI</a> · <a href="index.html#fix/invalid-client-token-id">Open in the site</a></p>
+</section>
+<section class="card problem" id="signature-mismatch">
+<h3>SignatureDoesNotMatch</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (SignatureDoesNotMatch) when calling the GetCallerIdentity operation: The request signature we calculated does not match the signature you provided. Check your AWS Secret Access Key and signing method. Consult the service documentation for details.</code></pre>
+<h4>What it means</h4>
+<p>The access key ID exists, but the request was signed with a different secret, or the clock is wrong.</p>
+<h4>Likely causes</h4>
+<ul><li>A secret access key copied with a missing or extra character</li><li>The secret of a different key paired with this key ID</li><li>The machine's clock is off by more than five minutes</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws configure list
+date -u</code></pre>
+<h4>Fix</h4>
+<ul><li>Re-enter the secret with <code>aws configure set aws_secret_access_key ...</code> or create a new key pair</li><li>Sync the clock (NTP)</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Use SSO or roles so no secret is copied by hand</li></ul>
+<p class="note">Learn it: <a href="index.html#level-00">Level 00 · Accounts, Regions and the CLI</a> · <a href="index.html#fix/signature-mismatch">Open in the site</a></p>
+</section>
+<section class="card problem" id="unable-to-locate-credentials">
+<h3>Unable to locate credentials</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>Unable to locate credentials. You can configure credentials by running &quot;aws configure&quot;.</code></pre>
+<h4>What it means</h4>
+<p>The CLI looked everywhere in its chain (flags, environment, config files, container and instance roles) and found nothing.</p>
+<h4>Likely causes</h4>
+<ul><li>No profile configured on this machine</li><li>AWS_PROFILE names a profile that has no credentials</li><li>An instance without a role, or with IMDS turned off</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws configure list
+aws configure list-profiles</code></pre>
+<h4>Fix</h4>
+<ul><li><code>aws configure sso</code> (people) or attach an instance profile (servers)</li><li>Check <code>--profile</code> and AWS_PROFILE point at the profile you mean</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Give servers roles, never keys in files</li></ul>
+<p class="note">Learn it: <a href="index.html#level-00">Level 00 · Accounts, Regions and the CLI</a> · <a href="index.html#fix/unable-to-locate-credentials">Open in the site</a></p>
+</section>
+<section class="card problem" id="sso-token-expired">
+<h3>Error when retrieving token from sso: Token has expired and refresh failed</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>Error when retrieving token from sso: Token has expired and refresh failed</code></pre>
+<h4>What it means</h4>
+<p>The IAM Identity Center session behind an SSO profile has ended.</p>
+<h4>Likely causes</h4>
+<ul><li>The SSO session lasted its configured duration</li><li>You signed out in the browser</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws configure list</code></pre>
+<h4>Fix</h4>
+<ul><li><code>aws sso login --profile &lt;profile&gt;</code></li></ul>
+<h4>Prevent it</h4>
+<ul><li>Use an sso-session block in ~/.aws/config so several profiles share one login</li></ul>
+<p class="note">Practise it: <a href="index.html#play/expired">ExpiredToken</a> · Learn it: <a href="index.html#level-00">Level 00 · Accounts, Regions and the CLI</a> · <a href="index.html#fix/sso-token-expired">Open in the site</a></p>
+</section>
+<section class="card problem" id="access-denied-identity">
+<h3>AccessDenied: no identity-based policy allows the action</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (AccessDenied) when calling the ListObjectsV2 operation: User: arn:aws:iam::111122223333:user/analyst is not authorized to perform: s3:ListBucket on resource: &quot;arn:aws:s3:::quest-kitchen-reports&quot; because no identity-based policy allows the s3:ListBucket action</code></pre>
+<h4>What it means</h4>
+<p>Nothing allows this principal to do this action on this resource. The message names all three; read it to the end.</p>
+<h4>Likely causes</h4>
+<ul><li>The policy allows a different action (s3:GetObject is not s3:ListBucket)</li><li>The policy names a different resource (bucket/* is not the bucket)</li><li>A condition in the policy does not match the request</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws sts get-caller-identity
+aws iam simulate-principal-policy --policy-source-arn &lt;arn&gt; --action-names &lt;action&gt; --resource-arns &lt;arn&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Allow exactly that action on exactly that resource</li><li>Remember bucket-level actions take arn:aws:s3:::bucket and object actions take arn:aws:s3:::bucket/*</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Test new policies with simulate-principal-policy or IAM Access Analyzer policy validation</li></ul>
+<p class="note">Practise it: <a href="index.html#play/s3list">AccessDenied on ListBucket</a> · Learn it: <a href="index.html#level-01">Level 01 · IAM users, groups and policies</a> · <a href="index.html#fix/access-denied-identity">Open in the site</a></p>
+</section>
+<section class="card problem" id="access-denied-explicit">
+<h3>AccessDenied with an explicit deny</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>is not authorized to perform: ec2:StopInstances on resource: arn:aws:ec2:us-east-1:111122223333:instance/i-0abc with an explicit deny in an identity-based policy
+with an explicit deny in a resource-based policy</code></pre>
+<h4>What it means</h4>
+<p>A Deny statement matched. An explicit deny wins over every allow, AdministratorAccess included.</p>
+<h4>Likely causes</h4>
+<ul><li>A guard-rail policy with Resource &quot;*&quot; and no condition</li><li>A bucket or key policy that denies, for example, requests without TLS</li><li>A permissions boundary or session policy</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws iam list-user-policies --user-name &lt;user&gt;
+aws iam list-attached-user-policies --user-name &lt;user&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Narrow the Deny with a condition or a specific resource, rather than deleting it</li><li>Fix the request so it meets the condition (for example, use HTTPS)</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Write denies with explicit conditions and test both what they block and what they allow</li></ul>
+<p class="note">Practise it: <a href="index.html#play/explicitdeny">Explicit deny wins</a> · Learn it: <a href="index.html#level-03">Level 03 · How AWS decides: policy evaluation</a> · <a href="index.html#fix/access-denied-explicit">Open in the site</a></p>
+</section>
+<section class="card problem" id="unauthorized-operation-encoded">
+<h3>UnauthorizedOperation with an encoded authorization failure message</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (UnauthorizedOperation) when calling the RunInstances operation: You are not authorized to perform this operation. Encoded authorization failure message: ...</code></pre>
+<h4>What it means</h4>
+<p>EC2 hides which permission failed. The encoded message says, for someone allowed to decode it.</p>
+<h4>Likely causes</h4>
+<ul><li>A missing permission on a related resource: iam:PassRole, kms:CreateGrant, ec2:CreateTags</li><li>An explicit deny</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws sts decode-authorization-message --encoded-message &lt;message&gt; --query DecodedMessage --output text</code></pre>
+<h4>Fix</h4>
+<ul><li>Read <code>action</code>, <code>resource</code> and <code>explicitDeny</code> in the decoded JSON and grant (or narrow the deny on) exactly that</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Give developers sts:DecodeAuthorizationMessage so they can read their own failures</li></ul>
+<p class="note">Practise it: <a href="index.html#play/passrole">UnauthorizedOperation: iam:PassRole</a> · <a href="index.html#play/explicitdeny">Explicit deny wins</a> · Learn it: <a href="index.html#level-02">Level 02 · Roles, STS and trust</a> · <a href="index.html#fix/unauthorized-operation-encoded">Open in the site</a></p>
+</section>
+<section class="card problem" id="passrole">
+<h3>Not authorized to perform iam:PassRole</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>is not authorized to perform: iam:PassRole on resource: arn:aws:iam::111122223333:role/web-role because no identity-based policy allows the iam:PassRole action</code></pre>
+<h4>What it means</h4>
+<p>Giving a role to a service (an instance profile, a Lambda execution role, an ECS task role) requires permission to pass that role.</p>
+<h4>Likely causes</h4>
+<ul><li>The caller can create the resource but has no iam:PassRole</li><li>PassRole is scoped to a different role or service</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws iam simulate-principal-policy --policy-source-arn &lt;caller-arn&gt; --action-names iam:PassRole --resource-arns &lt;role-arn&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Allow iam:PassRole on that role's ARN, with an iam:PassedToService condition</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Never grant iam:PassRole on *: it lets the caller hand an admin role to code they control</li></ul>
+<p class="note">Practise it: <a href="index.html#play/passrole">UnauthorizedOperation: iam:PassRole</a> · Learn it: <a href="index.html#level-02">Level 02 · Roles, STS and trust</a> · <a href="index.html#fix/passrole">Open in the site</a></p>
+</section>
+<section class="card problem" id="assume-role-denied">
+<h3>AccessDenied when calling AssumeRole</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (AccessDenied) when calling the AssumeRole operation: User: arn:aws:iam::111122223333:user/ci-bot is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111122223333:role/deploy-role</code></pre>
+<h4>What it means</h4>
+<p>Either the caller's policies do not allow sts:AssumeRole, or the role's trust policy does not name the caller. The message is the same for both.</p>
+<h4>Likely causes</h4>
+<ul><li>The trust policy names a deleted user (it shows as AIDA... or AROA...)</li><li>The trust policy names a different account or role</li><li>A condition such as sts:ExternalId or MFA is not met</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws iam get-role --role-name &lt;role&gt; --query Role.AssumeRolePolicyDocument
+aws sts get-caller-identity</code></pre>
+<h4>Fix</h4>
+<ul><li>Name the caller in the trust policy: <code>aws iam update-assume-role-policy</code></li><li>Allow sts:AssumeRole on the role in the caller's policy</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Trust roles rather than users, and manage trust policies in code</li></ul>
+<p class="note">Practise it: <a href="index.html#play/trust">Role cannot be assumed</a> · Learn it: <a href="index.html#level-02">Level 02 · Roles, STS and trust</a> · <a href="index.html#fix/assume-role-denied">Open in the site</a></p>
+</section>
+<section class="card problem" id="web-identity-denied">
+<h3>Not authorized to perform sts:AssumeRoleWithWebIdentity</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (AccessDenied) when calling the AssumeRoleWithWebIdentity operation: Not authorized to perform sts:AssumeRoleWithWebIdentity
+Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity</code></pre>
+<h4>What it means</h4>
+<p>The OIDC token (from GitHub Actions, for example) does not match the role's trust policy.</p>
+<h4>Likely causes</h4>
+<ul><li>The sub condition names another repository, branch or environment</li><li>The aud is not sts.amazonaws.com</li><li>The workflow lacks <code>permissions: id-token: write</code></li></ul>
+<h4>Confirm</h4>
+<pre><code>aws iam get-role --role-name &lt;role&gt; --query Role.AssumeRolePolicyDocument</code></pre>
+<h4>Fix</h4>
+<ul><li>Set the sub condition to the exact repository and ref, for example repo:owner/repo:ref:refs/heads/main</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Never use repo:* or a bare *; scope to repository and branch or environment</li></ul>
+<p class="note">Practise it: <a href="index.html#play/oidc">GitHub Actions cannot assume its role</a> · Learn it: <a href="index.html#level-18">Level 18 · Infrastructure as code and CI/CD</a> · <a href="index.html#fix/web-identity-denied">Open in the site</a></p>
+</section>
+<section class="card problem" id="scp-denied">
+<h3>Explicit deny in a service control policy</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>is not authorized to perform: s3:CreateBucket on resource: &quot;arn:aws:s3:::quest-kitchen-archive-eu&quot; with an explicit deny in a service control policy
+because no service control policy allows the</code></pre>
+<h4>What it means</h4>
+<p>Your organization's management account caps what this account can do. Nothing inside the account overrides it.</p>
+<h4>Likely causes</h4>
+<ul><li>A Region restriction</li><li>A guard rail that blocks disabling CloudTrail, leaving the organization or changing networking</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws organizations describe-organization
+Ask the platform team which SCPs apply</code></pre>
+<h4>Fix</h4>
+<ul><li>Work within the guard rail (for example, an allowed Region) or request an exception</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Publish your organization's guard rails where engineers can read them</li></ul>
+<p class="note">Practise it: <a href="index.html#play/scp">Denied by a service control policy</a> · Learn it: <a href="index.html#level-03">Level 03 · How AWS decides: policy evaluation</a> · <a href="index.html#fix/scp-denied">Open in the site</a></p>
+</section>
+<section class="card problem" id="kms-access-denied">
+<h3>KMS AccessDeniedException: no resource-based policy allows kms:Decrypt</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (AccessDeniedException) when calling the Decrypt operation: User: arn:aws:sts::111122223333:assumed-role/payments-app/you is not authorized to perform: kms:Decrypt on resource: arn:aws:kms:us-east-1:111122223333:key/... because no resource-based policy allows the kms:Decrypt action</code></pre>
+<h4>What it means</h4>
+<p>The key policy does not allow the caller. With KMS, an IAM allow is never enough on its own.</p>
+<h4>Likely causes</h4>
+<ul><li>The key policy has no statement for the role, and no root-account statement delegating to IAM</li><li>The object was encrypted with a different key</li><li>Cross-account use without both sides allowing it</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws kms get-key-policy --key-id &lt;key-id&gt; --policy-name default --query Policy --output text
+aws s3api head-object --bucket &lt;bucket&gt; --key &lt;key&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Add a key policy statement for the role (or the account root, then allow it in IAM) with <code>aws kms put-key-policy</code></li></ul>
+<h4>Prevent it</h4>
+<ul><li>Keep the administrators' statement in every key policy; KMS refuses policies that would lock you out</li></ul>
+<p class="note">Practise it: <a href="index.html#play/kmsdecrypt">KMS key policy blocks decrypt</a> · Learn it: <a href="index.html#level-15">Level 15 · KMS and encryption</a> · <a href="index.html#fix/kms-access-denied">Open in the site</a></p>
+</section>
+<section class="card problem" id="connection-timed-out">
+<h3>Connection timed out to an EC2 instance</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>curl: (28) Failed to connect to 203.0.113.10 port 80 after 75003 ms: Couldn't connect to server
+ssh: connect to host 203.0.113.10 port 22: Operation timed out</code></pre>
+<h4>What it means</h4>
+<p>Packets were dropped silently somewhere. Something in the path does not allow the traffic.</p>
+<h4>Likely causes</h4>
+<ul><li>The security group does not allow the port from your address</li><li>The network ACL drops the request or the reply (ephemeral ports)</li><li>The subnet has no route to an internet gateway</li><li>The instance has no public IP, or is stopped</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws ec2 describe-instances --instance-ids &lt;id&gt; --query 'Reservations[].Instances[].[State.Name,PublicIpAddress,SubnetId]'
+aws ec2 describe-security-groups --group-ids &lt;sg-id&gt;
+aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=&lt;subnet-id&gt;
+aws ec2 describe-network-acls --filters Name=association.subnet-id,Values=&lt;subnet-id&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Work outward: instance state, public IP, security group, NACL (both directions), route table, internet gateway</li><li>VPC Reachability Analyzer can trace the path for you</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Build networks from templates, and use Session Manager instead of opening SSH</li></ul>
+<p class="note">Practise it: <a href="index.html#play/sgweb">Website times out: security group</a> · <a href="index.html#play/nacl">Network ACL drops the replies</a> · <a href="index.html#play/nopublicip">No public IP address</a> · <a href="index.html#play/routeigw">Subnet with no route to the internet</a> · Learn it: <a href="index.html#level-06">Level 06 · Security groups and network ACLs</a> · <a href="index.html#fix/connection-timed-out">Open in the site</a></p>
+</section>
+<section class="card problem" id="connection-refused">
+<h3>Connection refused</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>curl: (7) Failed to connect to 10.0.11.21 port 80 after 3 ms: Couldn't connect to server
+ssh: connect to host 10.0.1.30 port 22: Connection refused</code></pre>
+<h4>What it means</h4>
+<p>The packet reached the machine, and nothing was listening on that port. The network is fine.</p>
+<h4>Likely causes</h4>
+<ul><li>The service is down or crashed</li><li>It listens on another port (8080, not 80)</li><li>It listens only on 127.0.0.1</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws ssm start-session --target &lt;instance-id&gt;
+sudo ss -tlnp</code></pre>
+<h4>Fix</h4>
+<ul><li>Start the service, or connect to the port it really uses</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Health checks on the real port</li></ul>
+<p class="note">Practise it: <a href="index.html#play/alb502">ALB returns 502</a> · Learn it: <a href="index.html#level-06">Level 06 · Security groups and network ACLs</a> · <a href="index.html#fix/connection-refused">Open in the site</a></p>
+</section>
+<section class="card problem" id="nat-no-internet">
+<h3>Private instance cannot reach the internet</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>curl: (28) Failed to connect to api.github.com port 443 after 130217 ms: Couldn't connect to server</code></pre>
+<h4>What it means</h4>
+<p>Instances in a private subnet reach the internet only through a NAT gateway (or a proxy).</p>
+<h4>Likely causes</h4>
+<ul><li>No NAT gateway, or no 0.0.0.0/0 route to it in the private route table</li><li>The NAT gateway sits in a private subnet</li><li>Outbound blocked by the security group or NACL</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=&lt;subnet-id&gt;
+aws ec2 describe-nat-gateways</code></pre>
+<h4>Fix</h4>
+<ul><li>Create a NAT gateway in a public subnet with an Elastic IP, and route 0.0.0.0/0 from the private route table to it</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Use gateway endpoints for S3 and DynamoDB, and interface endpoints for AWS APIs, so less traffic needs NAT</li></ul>
+<p class="note">Practise it: <a href="index.html#play/nat">Private instance cannot reach the internet</a> · Learn it: <a href="index.html#level-05">Level 05 · Internet access: IGW, NAT and public IPs</a> · <a href="index.html#fix/nat-no-internet">Open in the site</a></p>
+</section>
+<section class="card problem" id="ssm-not-connected">
+<h3>TargetNotConnected when starting a Session Manager session</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (TargetNotConnected) when calling the StartSession operation: i-0123456789abcdef0 is not connected.</code></pre>
+<h4>What it means</h4>
+<p>The SSM agent on the instance is not talking to Systems Manager.</p>
+<h4>Likely causes</h4>
+<ul><li>The instance role lacks AmazonSSMManagedInstanceCore</li><li>No route to the SSM endpoints (no NAT and no interface endpoints)</li><li>The instance is stopped or the agent is not running</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws ssm describe-instance-information
+aws ec2 describe-instances --instance-ids &lt;id&gt; --query 'Reservations[].Instances[].IamInstanceProfile'</code></pre>
+<h4>Fix</h4>
+<ul><li>Attach the managed policy to the role, and give the subnet a NAT route or ssm, ssmmessages and ec2messages endpoints</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Bake the agent and role into every launch template</li></ul>
+<p class="note">Practise it: <a href="index.html#play/nat">Private instance cannot reach the internet</a> · <a href="index.html#play/sshworld">SSH open to the world</a> · Learn it: <a href="index.html#level-16">Level 16 · Security operations</a> · <a href="index.html#fix/ssm-not-connected">Open in the site</a></p>
+</section>
+<section class="card problem" id="insufficient-capacity">
+<h3>InsufficientInstanceCapacity</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (InsufficientInstanceCapacity) when calling the RunInstances operation (reached max retries: 2): We currently do not have sufficient c7i.8xlarge capacity in the Availability Zone you requested (us-east-1a).</code></pre>
+<h4>What it means</h4>
+<p>AWS is out of that instance type in that AZ right now. It is not your account's limit.</p>
+<h4>Likely causes</h4>
+<ul><li>A popular or large type in one AZ</li><li>A capacity spike in the Region</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws ec2 describe-instance-type-offerings --location-type availability-zone --filters Name=instance-type,Values=&lt;type&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Launch in another AZ, or a similar type</li><li>Retry later</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Auto Scaling groups across several AZs and instance types; capacity reservations for critical workloads</li></ul>
+<p class="note">Practise it: <a href="index.html#play/capacity">InsufficientInstanceCapacity</a> · Learn it: <a href="index.html#level-07">Level 07 · EC2: launch, state and limits</a> · <a href="index.html#fix/insufficient-capacity">Open in the site</a></p>
+</section>
+<section class="card problem" id="vcpu-limit">
+<h3>VcpuLimitExceeded</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (VcpuLimitExceeded) when calling the RunInstances operation: You have requested more vCPU capacity than your current vCPU limit of 32 allows for the instance bucket that the specified instance type belongs to.</code></pre>
+<h4>What it means</h4>
+<p>Running instances in this family group already use the account's vCPU quota for the Region.</p>
+<h4>Likely causes</h4>
+<ul><li>Forgotten instances still running</li><li>A new account with low default quotas</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
+aws ec2 describe-instances --filters Name=instance-state-name,Values=running</code></pre>
+<h4>Fix</h4>
+<ul><li>Stop or terminate what you do not need</li><li>Request an increase: <code>aws service-quotas request-service-quota-increase</code></li></ul>
+<h4>Prevent it</h4>
+<ul><li>Tag instances with an owner and expiry, and review running instances weekly</li></ul>
+<p class="note">Practise it: <a href="index.html#play/vcpu">VcpuLimitExceeded</a> · Learn it: <a href="index.html#level-07">Level 07 · EC2: launch, state and limits</a> · <a href="index.html#fix/vcpu-limit">Open in the site</a></p>
+</section>
+<section class="card problem" id="status-check-failed">
+<h3>Status check failed (1/2 or 0/2 checks passed)</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>&quot;SystemStatus&quot;: {&quot;Status&quot;: &quot;impaired&quot;}
+StatusCheckFailed_System</code></pre>
+<h4>What it means</h4>
+<p>System checks watch the AWS host; instance checks watch your operating system.</p>
+<h4>Likely causes</h4>
+<ul><li>System: hardware or network trouble on the host</li><li>Instance: kernel panic, full disk, broken network configuration</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws ec2 describe-instance-status --instance-ids &lt;id&gt;
+aws ec2 get-console-output --instance-id &lt;id&gt; --latest</code></pre>
+<h4>Fix</h4>
+<ul><li>System: stop and start the instance (not reboot), which moves it to a new host</li><li>Instance: read the console output and fix the OS</li></ul>
+<h4>Prevent it</h4>
+<ul><li>A CloudWatch alarm on StatusCheckFailed_System with the recover action</li></ul>
+<p class="note">Practise it: <a href="index.html#play/statuscheck">System status check failed</a> · Learn it: <a href="index.html#level-07">Level 07 · EC2: launch, state and limits</a> · <a href="index.html#fix/status-check-failed">Open in the site</a></p>
+</section>
+<section class="card problem" id="asg-not-scaling">
+<h3>Auto Scaling group does not scale</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>New SetDesiredCapacity value 4 is above max value 2 for the AutoScalingGroup.
+&quot;StateValue&quot;: &quot;INSUFFICIENT_DATA&quot;</code></pre>
+<h4>What it means</h4>
+<p>Scaling needs an alarm that sees data, a policy, and room between MinSize and MaxSize.</p>
+<h4>Likely causes</h4>
+<ul><li>DesiredCapacity already equals MaxSize</li><li>The alarm watches the wrong dimension (an old group name)</li><li>The alarm has no action, or the policy is disabled</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names &lt;asg&gt;
+aws autoscaling describe-scaling-activities --auto-scaling-group-name &lt;asg&gt;
+aws cloudwatch describe-alarms --alarm-names &lt;alarm&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Raise MaxSize</li><li>Fix the alarm's dimensions and actions, or use a target tracking policy</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Target tracking policies, which manage their own alarms</li></ul>
+<p class="note">Practise it: <a href="index.html#play/asgmax">Auto Scaling stuck at its maximum</a> · <a href="index.html#play/asgalarm">Scaling alarm on the wrong metric</a> · Learn it: <a href="index.html#level-10">Level 10 · Load balancers and Auto Scaling</a> · <a href="index.html#fix/asg-not-scaling">Open in the site</a></p>
+</section>
+<section class="card problem" id="incorrect-instance-state">
+<h3>IncorrectInstanceState</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (IncorrectInstanceState) when calling the RebootInstances operation: The instance 'i-0123456789abcdef0' is not in a state from which it can be rebooted.</code></pre>
+<h4>What it means</h4>
+<p>The action does not apply to the instance's current state, for example rebooting a stopped instance.</p>
+<h4>Likely causes</h4>
+<ul><li>The instance is stopped, stopping or terminated</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws ec2 describe-instances --instance-ids &lt;id&gt; --query 'Reservations[].Instances[].State.Name'</code></pre>
+<h4>Fix</h4>
+<ul><li>Start it first, or wait for the transition to finish (<code>aws ec2 wait instance-running</code>)</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Script with <code>aws ec2 wait</code> between steps</li></ul>
+<p class="note">Practise it: <a href="index.html#play/stopped">Instance stopped</a> · Learn it: <a href="index.html#level-07">Level 07 · EC2: launch, state and limits</a> · <a href="index.html#fix/incorrect-instance-state">Open in the site</a></p>
+</section>
+<section class="card problem" id="no-such-bucket">
+<h3>NoSuchBucket: the specified bucket does not exist</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (NoSuchBucket) when calling the ListObjectsV2 operation: The specified bucket does not exist</code></pre>
+<h4>What it means</h4>
+<p>No bucket has that exact name. It is not a permissions error.</p>
+<h4>Likely causes</h4>
+<ul><li>A typo in code or configuration</li><li>The bucket was deleted</li><li>An environment variable pointing at another stage's bucket</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws s3 ls | grep &lt;part-of-name&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Use the right name in configuration</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Pass bucket names from infrastructure as code outputs rather than typing them</li></ul>
+<p class="note">Practise it: <a href="index.html#play/nosuchbucket">NoSuchBucket from a Lambda function</a> · Learn it: <a href="index.html#level-09">Level 09 · S3: buckets, access and versioning</a> · <a href="index.html#fix/no-such-bucket">Open in the site</a></p>
+</section>
+<section class="card problem" id="bucket-already-exists">
+<h3>BucketAlreadyExists</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (BucketAlreadyExists) when calling the CreateBucket operation: The requested bucket name is not available. The bucket namespace is shared by all users of the system. Please select a different name and try again.</code></pre>
+<h4>What it means</h4>
+<p>Another AWS account owns a bucket with that name. Bucket names are global.</p>
+<h4>Likely causes</h4>
+<ul><li>A short or generic name</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws s3 ls s3://&lt;name&gt; (AccessDenied means it exists elsewhere)</code></pre>
+<h4>Fix</h4>
+<ul><li>Choose a unique name: organization, purpose, account or Region</li></ul>
+<h4>Prevent it</h4>
+<ul><li>A naming convention and infrastructure as code</li></ul>
+<p class="note">Practise it: <a href="index.html#play/bucketexists">BucketAlreadyExists</a> · Learn it: <a href="index.html#level-09">Level 09 · S3: buckets, access and versioning</a> · <a href="index.html#fix/bucket-already-exists">Open in the site</a></p>
+</section>
+<section class="card problem" id="s3-403-forbidden">
+<h3>403 Forbidden on HeadObject or GetObject</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>fatal error: An error occurred (403) when calling the HeadObject operation: Forbidden
+An error occurred (AccessDenied) when calling the GetObject operation: Access Denied</code></pre>
+<h4>What it means</h4>
+<p>S3 refused the request. The CLI's HeadObject cannot show why, so check each layer.</p>
+<h4>Likely causes</h4>
+<ul><li>No identity policy allows s3:GetObject on that key</li><li>The object is owned by another account (ObjectWriter ownership)</li><li>The object is KMS-encrypted and the key policy does not allow you</li><li>A bucket policy deny, or a VPC endpoint policy</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws s3api get-bucket-ownership-controls --bucket &lt;bucket&gt;
+aws s3api head-object --bucket &lt;bucket&gt; --key &lt;key&gt;
+aws s3api get-bucket-policy --bucket &lt;bucket&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Set Object Ownership to BucketOwnerEnforced</li><li>Allow kms:Decrypt in the key policy</li><li>Grant the action on the right ARN</li></ul>
+<h4>Prevent it</h4>
+<ul><li>BucketOwnerEnforced on every bucket; one KMS key policy per data set, reviewed</li></ul>
+<p class="note">Practise it: <a href="index.html#play/ownership">403 on objects another account uploaded</a> · <a href="index.html#play/kmsdecrypt">KMS key policy blocks decrypt</a> · Learn it: <a href="index.html#level-09">Level 09 · S3: buckets, access and versioning</a> · <a href="index.html#fix/s3-403-forbidden">Open in the site</a></p>
+</section>
+<section class="card problem" id="illegal-location-constraint">
+<h3>IllegalLocationConstraintException</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (IllegalLocationConstraintException) when calling the CreateBucket operation: The unspecified location constraint is incompatible for the region specific endpoint this request was sent to.</code></pre>
+<h4>What it means</h4>
+<p>Outside us-east-1, create-bucket needs the Region repeated as a LocationConstraint.</p>
+<h4>Likely causes</h4>
+<ul><li><code>aws s3api create-bucket --region eu-west-1</code> without <code>--create-bucket-configuration</code></li></ul>
+<h4>Confirm</h4>
+<pre><code>aws configure get region</code></pre>
+<h4>Fix</h4>
+<ul><li>Add <code>--create-bucket-configuration LocationConstraint=&lt;region&gt;</code>, or use <code>aws s3 mb</code></li></ul>
+<h4>Prevent it</h4>
+<ul><li>Create buckets from templates</li></ul>
+<p class="note">Practise it: <a href="index.html#play/bucketexists">BucketAlreadyExists</a> · Learn it: <a href="index.html#level-09">Level 09 · S3: buckets, access and versioning</a> · <a href="index.html#fix/illegal-location-constraint">Open in the site</a></p>
+</section>
+<section class="card problem" id="no-such-key">
+<h3>NoSuchKey, or an object that vanished</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (NoSuchKey) when calling the GetObject operation: The specified key does not exist.</code></pre>
+<h4>What it means</h4>
+<p>No current object has that key. In a versioned bucket it may sit behind a delete marker.</p>
+<h4>Likely causes</h4>
+<ul><li>A typo or a different prefix</li><li>The object was deleted</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws s3api list-object-versions --bucket &lt;bucket&gt; --prefix &lt;key&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>In a versioned bucket, delete the delete marker or copy the previous version back</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Versioning plus a lifecycle rule for noncurrent versions on important buckets</li></ul>
+<p class="note">Practise it: <a href="index.html#play/undelete">Recover a deleted object</a> · Learn it: <a href="index.html#level-09">Level 09 · S3: buckets, access and versioning</a> · <a href="index.html#fix/no-such-key">Open in the site</a></p>
+</section>
+<section class="card problem" id="elb-502">
+<h3>502 Bad Gateway from a load balancer</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>HTTP/1.1 502 Bad Gateway
+Server: awselb/2.0</code></pre>
+<h4>What it means</h4>
+<p>The load balancer reached a target but got no valid HTTP response: refused, reset or malformed.</p>
+<h4>Likely causes</h4>
+<ul><li>Targets registered on a port where nothing listens</li><li>The application crashed or closed the connection</li><li>Keep-alive timeout on the target shorter than the load balancer's</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws elbv2 describe-target-health --target-group-arn &lt;tg-arn&gt;
+aws elbv2 describe-target-groups --names &lt;tg&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Register targets on the port the app uses</li><li>Fix the app; set its keep-alive above the load balancer's idle timeout</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Health checks on the traffic port, and ELB access logs</li></ul>
+<p class="note">Practise it: <a href="index.html#play/alb502">ALB returns 502</a> · Learn it: <a href="index.html#level-10">Level 10 · Load balancers and Auto Scaling</a> · <a href="index.html#fix/elb-502">Open in the site</a></p>
+</section>
+<section class="card problem" id="elb-503">
+<h3>503 Service Temporarily Unavailable from a load balancer</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>HTTP/1.1 503 Service Temporarily Unavailable
+&lt;title&gt;503 Service Temporarily Unavailable&lt;/title&gt;</code></pre>
+<h4>What it means</h4>
+<p>The load balancer had no target to send the request to.</p>
+<h4>Likely causes</h4>
+<ul><li>The target group has no registered targets</li><li>The listener rule points at an empty target group</li><li>The Auto Scaling group is attached to another target group</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws elbv2 describe-listeners --load-balancer-arn &lt;alb-arn&gt;
+aws elbv2 describe-target-health --target-group-arn &lt;tg-arn&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Register targets, or attach the Auto Scaling group to the target group</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Attach Auto Scaling groups to target groups in the same template as the listener</li></ul>
+<p class="note">Practise it: <a href="index.html#play/alb503">ALB returns 503</a> · Learn it: <a href="index.html#level-10">Level 10 · Load balancers and Auto Scaling</a> · <a href="index.html#fix/elb-503">Open in the site</a></p>
+</section>
+<section class="card problem" id="elb-504">
+<h3>504 Gateway Time-out from a load balancer</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>HTTP/1.1 504 Gateway Time-out
+&quot;Reason&quot;: &quot;Target.Timeout&quot;</code></pre>
+<h4>What it means</h4>
+<p>The load balancer could not connect to, or get an answer from, the target in time.</p>
+<h4>Likely causes</h4>
+<ul><li>The target's security group does not allow the load balancer's security group</li><li>A NACL drops the traffic</li><li>The app takes longer than the idle timeout</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws elbv2 describe-target-health --target-group-arn &lt;tg-arn&gt;
+aws ec2 describe-security-groups --group-ids &lt;target-sg&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Allow the target port from the load balancer's security group</li><li>Speed up the request, or raise the idle timeout</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Reference the load balancer's security group in the targets' rules</li></ul>
+<p class="note">Practise it: <a href="index.html#play/alb504">ALB returns 504</a> · Learn it: <a href="index.html#level-10">Level 10 · Load balancers and Auto Scaling</a> · <a href="index.html#fix/elb-504">Open in the site</a></p>
+</section>
+<section class="card problem" id="target-unhealthy">
+<h3>Targets unhealthy: health checks failed</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>&quot;Reason&quot;: &quot;Target.ResponseCodeMismatch&quot;, &quot;Description&quot;: &quot;Health checks failed with these codes: [404]&quot;
+&quot;Reason&quot;: &quot;Target.FailedHealthChecks&quot;</code></pre>
+<h4>What it means</h4>
+<p>The load balancer's health check does not get the expected answer from the target.</p>
+<h4>Likely causes</h4>
+<ul><li>The health check path does not exist</li><li>The app returns a redirect (301/302) on that path</li><li>Wrong health check port</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws elbv2 describe-target-groups --names &lt;tg&gt; --query 'TargetGroups[].[HealthCheckPath,HealthCheckPort,Matcher.HttpCode]'</code></pre>
+<h4>Fix</h4>
+<ul><li>Point the health check at a path that returns 200 when the app can serve</li></ul>
+<h4>Prevent it</h4>
+<ul><li>A dedicated /health endpoint; do not widen the matcher to hide failures</li></ul>
+<p class="note">Practise it: <a href="index.html#play/healthpath">Targets unhealthy: health check path</a> · <a href="index.html#play/alb502">ALB returns 502</a> · Learn it: <a href="index.html#level-10">Level 10 · Load balancers and Auto Scaling</a> · <a href="index.html#fix/target-unhealthy">Open in the site</a></p>
+</section>
+<section class="card problem" id="dns-servfail">
+<h3>Domain does not resolve: SERVFAIL</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: SERVFAIL
+** server can't find shop.example.com: SERVFAIL</code></pre>
+<h4>What it means</h4>
+<p>Resolvers could not get an answer from the domain's authoritative name servers.</p>
+<h4>Likely causes</h4>
+<ul><li>The registrar points at name servers of a deleted hosted zone</li><li>DNSSEC misconfiguration</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws route53domains get-domain-detail --domain-name &lt;domain&gt; --query Nameservers
+aws route53 get-hosted-zone --id &lt;zone-id&gt; --query DelegationSet.NameServers</code></pre>
+<h4>Fix</h4>
+<ul><li>Update the registrar's name servers to the hosted zone's four</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Protect production hosted zones from deletion; reusable delegation sets</li></ul>
+<p class="note">Practise it: <a href="index.html#play/r53ns">Domain does not resolve: name servers</a> · Learn it: <a href="index.html#level-12">Level 12 · Route 53 and DNS</a> · <a href="index.html#fix/dns-servfail">Open in the site</a></p>
+</section>
+<section class="card problem" id="dns-old-address">
+<h3>Route 53 record points at the wrong place</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>dig +short shop.example.com returns an old IP address</code></pre>
+<h4>What it means</h4>
+<p>DNS answers, but with an address where your service no longer runs.</p>
+<h4>Likely causes</h4>
+<ul><li>A records holding a load balancer's or old instance's IP</li><li>TTL caching of an old answer</li></ul>
+<h4>Confirm</h4>
+<pre><code>dig +short &lt;name&gt;
+aws route53 list-resource-record-sets --hosted-zone-id &lt;zone-id&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Use an alias record to the load balancer (or a CNAME below the apex)</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Records created by the same template as the load balancer</li></ul>
+<p class="note">Practise it: <a href="index.html#play/r53record">DNS points at an old server</a> · Learn it: <a href="index.html#level-12">Level 12 · Route 53 and DNS</a> · <a href="index.html#fix/dns-old-address">Open in the site</a></p>
+</section>
+<section class="card problem" id="rds-timeout">
+<h3>Connection timed out to RDS</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>Error: connect ETIMEDOUT 10.0.11.25:5432
+psql: error: connection to server at &quot;orders-db...&quot; (10.0.11.25), port 5432 failed: Connection timed out</code></pre>
+<h4>What it means</h4>
+<p>Packets to the database are dropped. Almost always a security group.</p>
+<h4>Likely causes</h4>
+<ul><li>The database's security group does not allow the client's security group</li><li>Client outside the VPC and the database is private</li><li>NACLs between the subnets</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws rds describe-db-instances --query 'DBInstances[].[Endpoint.Address,VpcSecurityGroups]'
+aws ec2 describe-security-groups --group-ids &lt;db-sg&gt;</code></pre>
+<h4>Fix</h4>
+<ul><li>Allow the port from the client's security group</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Reference security groups, never 0.0.0.0/0, on database ports</li></ul>
+<p class="note">Practise it: <a href="index.html#play/lambdards">Lambda cannot reach RDS</a> · <a href="index.html#play/rdspublic">Database open to the internet</a> · Learn it: <a href="index.html#level-11">Level 11 · RDS</a> · <a href="index.html#fix/rds-timeout">Open in the site</a></p>
+</section>
+<section class="card problem" id="rds-refused">
+<h3>Connection refused to RDS</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>psql: error: connection to server at &quot;orders-db...&quot; (10.0.11.25), port 3306 failed: Connection refused</code></pre>
+<h4>What it means</h4>
+<p>The network path works, but nothing listens on that port at that address.</p>
+<h4>Likely causes</h4>
+<ul><li>The wrong port (3306 for MySQL, 5432 for PostgreSQL)</li><li>The instance is rebooting, stopped or failing over</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws rds describe-db-instances --query 'DBInstances[].[DBInstanceStatus,Endpoint.Port]'</code></pre>
+<h4>Fix</h4>
+<ul><li>Use the endpoint's port, and wait for the status to be available</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Read the endpoint and port from configuration, not from memory</li></ul>
+<p class="note">Learn it: <a href="index.html#level-11">Level 11 · RDS</a> · <a href="index.html#fix/rds-refused">Open in the site</a></p>
+</section>
+<section class="card problem" id="rds-storage-full">
+<h3>RDS storage-full, No space left on device</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>could not extend file &quot;base/16384/16397&quot;: No space left on device
+DB instance orders-db has run out of storage space.</code></pre>
+<h4>What it means</h4>
+<p>The database volume is full and writes stop.</p>
+<h4>Likely causes</h4>
+<ul><li>Growth with no storage autoscaling</li><li>Logs or temporary files filling the disk</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws rds describe-db-instances --db-instance-identifier &lt;db&gt; --query 'DBInstances[].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage]'
+aws rds describe-events --source-type db-instance</code></pre>
+<h4>Fix</h4>
+<ul><li><code>aws rds modify-db-instance --allocated-storage &lt;+10% or more&gt; --max-allocated-storage &lt;cap&gt; --apply-immediately</code></li></ul>
+<h4>Prevent it</h4>
+<ul><li>Storage autoscaling and an alarm on FreeStorageSpace</li></ul>
+<p class="note">Practise it: <a href="index.html#play/rdsstorage">Database storage full</a> · Learn it: <a href="index.html#level-11">Level 11 · RDS</a> · <a href="index.html#fix/rds-storage-full">Open in the site</a></p>
+</section>
+<section class="card problem" id="lambda-timeout">
+<h3>Lambda: Task timed out after 3.00 seconds</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>Task timed out after 3.00 seconds
+{&quot;errorType&quot;:&quot;Sandbox.Timedout&quot;,&quot;errorMessage&quot;:&quot;RequestId: ... Error: Task timed out after 3.00 seconds&quot;}</code></pre>
+<h4>What it means</h4>
+<p>The function ran longer than its timeout and was stopped.</p>
+<h4>Likely causes</h4>
+<ul><li>The default 3-second timeout</li><li>A slow downstream call</li><li>A VPC function waiting for a network path that does not exist (no NAT, no endpoint)</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws lambda get-function-configuration --function-name &lt;function&gt; --query '[Timeout,MemorySize,VpcConfig]'
+aws logs tail /aws/lambda/&lt;function&gt; --since 1h</code></pre>
+<h4>Fix</h4>
+<ul><li>Raise the timeout above the slowest real run</li><li>Fix the network path or add timeouts to downstream calls</li></ul>
+<h4>Prevent it</h4>
+<ul><li>Set timeouts deliberately, and alarm on the Errors and Duration metrics</li></ul>
+<p class="note">Practise it: <a href="index.html#play/lambdatimeout">Lambda task timed out</a> · Learn it: <a href="index.html#level-13">Level 13 · Lambda</a> · <a href="index.html#fix/lambda-timeout">Open in the site</a></p>
+</section>
+<section class="card problem" id="lambda-throttled">
+<h3>Lambda: TooManyRequestsException, Rate Exceeded</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (TooManyRequestsException) when calling the Invoke operation (reached max retries: 2): Rate Exceeded.</code></pre>
+<h4>What it means</h4>
+<p>The function is throttled: it hit its reserved concurrency, or the account's concurrency limit.</p>
+<h4>Likely causes</h4>
+<ul><li>Reserved concurrency set to 0 (switched off) or too low</li><li>A burst above the account limit</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws lambda get-function-concurrency --function-name &lt;function&gt;
+aws lambda get-account-settings</code></pre>
+<h4>Fix</h4>
+<ul><li><code>aws lambda put-function-concurrency</code> with a sensible value, or <code>delete-function-concurrency</code></li></ul>
+<h4>Prevent it</h4>
+<ul><li>Alarm on the Throttles metric</li></ul>
+<p class="note">Practise it: <a href="index.html#play/throttled">Lambda throttled: TooManyRequestsException</a> · Learn it: <a href="index.html#level-13">Level 13 · Lambda</a> · <a href="index.html#fix/lambda-throttled">Open in the site</a></p>
+</section>
+<section class="card problem" id="throttling">
+<h3>ThrottlingException: Rate exceeded</h3>
+<h4>Error text</h4>
+<pre class="error-text"><code>An error occurred (ThrottlingException) when calling the DescribeInstances operation (reached max retries: 2): Rate exceeded
+An error occurred (RequestLimitExceeded) when calling the DescribeInstances operation (reached max retries: 4): Request limit exceeded.</code></pre>
+<h4>What it means</h4>
+<p>Too many API calls in a short time. The CLI already retried and gave up.</p>
+<h4>Likely causes</h4>
+<ul><li>Scripts that poll in tight loops</li><li>Many automation tools sharing one account and Region</li></ul>
+<h4>Confirm</h4>
+<pre><code>aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=&lt;operation&gt; --max-results 50</code></pre>
+<h4>Fix</h4>
+<ul><li>Slow down, batch calls, and set <code>AWS_RETRY_MODE=adaptive</code> and <code>AWS_MAX_ATTEMPTS=10</code></li></ul>
+<h4>Prevent it</h4>
+<ul><li>Use waiters and events (EventBridge) instead of polling</li></ul>
+<p class="note">Learn it: <a href="index.html#level-14">Level 14 · CloudWatch and CloudTrail</a> · <a href="index.html#fix/throttling">Open in the site</a></p>
+</section>
+</main>
+<footer class="foot">
+<div class="wrap foot-base">
+<p>© 2024–2026 Sandeep Komal Pothu and contributors. Open source under the MIT License.</p>
+<p class="foot-tm">Amazon Web Services, AWS and related marks are trademarks of Amazon.com, Inc. or its affiliates. This project is independent and not affiliated with or endorsed by Amazon Web Services.</p>
+</div>
+</footer>
+</body>
+</html>

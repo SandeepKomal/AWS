@@ -4,6 +4,24 @@ Hands-on **AWS examples, AWS CLI commands, CloudFormation templates, networking 
 
 This repository is built as a practical reference for cloud and DevOps engineers learning or operating AWS environments.
 
+## AWS Quest: learn it by fixing it
+
+**[sandeepkomal.github.io/AWS](https://sandeepkomal.github.io/AWS/)** is a free site built from this repository:
+
+- **Playground**: a simulated AWS account in your browser with 48 incidents to fix using real `aws` CLI commands and real error messages: AccessDenied, explicit denies, trust policies, NAT and routing, ALB 502/503/504, public buckets, KMS key policies, IMDSv1, leaked keys, runaway costs. It never touches a real account.
+- **Path**: 19 levels from your first `aws sts get-caller-identity` to CI/CD with GitHub OIDC, each linked to the notes in this repository.
+- **Policy X-ray**: paste an IAM, trust, bucket or key policy and read every statement in plain words, with risky patterns flagged.
+- **Troubleshoot**: paste an AWS error to find what it means, how to confirm the cause, the fix and how to prevent it. Every entry is also on one plain page, [problems.html](https://sandeepkomal.github.io/AWS/problems.html).
+- **Quiz**, **cheat sheet** and an interactive **architecture** page.
+
+The site is static (`site/`), with no dependencies, trackers or cookies. Run the tests with Node:
+
+```bash
+node tests/check_site_data.js && node tests/check_playground.js && node tests/fuzz_playground.js && node tests/check_xray.js && node tests/check_problems.js
+node tools/build-problems.js   # after changing the troubleshooting entries in site/data.js
+python3 -m http.server -d site 8000   # then open http://localhost:8000
+```
+
 ## AWS topics covered
 
 - VPC, public/private subnets, route tables, Internet Gateway and NAT Gateway
@@ -43,6 +61,9 @@ Deployments/
 
 IAM.md
 Linux/
+site/        AWS Quest, the learning site (GitHub Pages)
+tests/       Node checks for the site: data, simulator, fuzzer, X-ray, problems page
+tools/       build-problems.js: generates site/problems.html and site/sitemap.xml
 ```
 
 ## Start here
