@@ -330,13 +330,17 @@
     $("#doctor-out").replaceChildren(h("article.card.problem", { id: "problem-" + id },
       h("div.problem-head", null, h("h3", null, d.title), copy),
       h("h4", null, "Error text"), h("pre.error-text", null, h("code", null, d.errors.join("\n"))),
-      h("h4", null, "What it means"), h("p", null, ...rich(d.meaning)),
+      h("h4", null, "Why it happens"), h("p", null, ...rich(d.meaning)),
       h("h4", null, "Likely causes"), list(d.causes),
       h("h4", null, "Confirm"), h("pre", null, h("code", null, d.confirm.join("\n"))),
       h("h4", null, "Fix"), list(d.fix),
       h("h4", null, "Prevent it"), list(d.prevent),
-      practiseRow(d.scenarios, "Practise it:"),
-      lv ? h("p.note", null, "Learn it: ", h("a", { href: "#level-" + lv.id, onclick: (e) => { e.preventDefault(); location.hash = "path"; setTimeout(() => scrollToEl($("#level-" + lv.id))); } }, `Level ${lv.id} · ${lv.title}`)) : null));
+      // Fixing is the way in; the point is to learn it, so every answer ends in practice.
+      h("div.learn-it", null,
+        h("h4", null, "Now learn it"),
+        h("p", null, "Break this yourself on a simulated account and fix it. Doing it once is what makes you recognise it next time."),
+        practiseRow(d.scenarios, "Practise:"),
+        lv ? h("p.note", null, "Then the level that teaches it: ", h("a", { href: "#level-" + lv.id, onclick: (e) => { e.preventDefault(); location.hash = "path"; setTimeout(() => scrollToEl($("#level-" + lv.id))); } }, `Level ${lv.id} · ${lv.title}`)) : null)));
     setTimeout(() => scrollToEl($("#doctor-out")));
   }
 
@@ -418,7 +422,7 @@
     { label: "Your path", kind: "Section", run: () => goTab("path", () => $("#path-title").scrollIntoView()) },
     { label: "Exam: random questions from every level", kind: "Quiz", run: () => goTab("quiz", () => { $("#quiz-level").value = "exam"; renderQuiz(); }) },
     { label: "Policy X-ray", kind: "Section", run: () => goTab("xray") },
-    { label: "Troubleshoot an error", kind: "Section", run: () => goTab("doctor", () => $("#doctor-q").focus()) },
+    { label: "Fix: troubleshoot an error", kind: "Section", run: () => goTab("doctor", () => $("#doctor-q").focus()) },
     { label: "Cheat sheet", kind: "Section", run: () => goTab("cheats", () => $("#cheat-q").focus()) },
     { label: "AWS architecture: every component explained", kind: "Section", run: () => goTab("arch") },
     ...Q.levels.map((lv) => ({ label: `${lv.id} · ${lv.title}`, hint: lv.topic, kind: "Level", run: () => goTab("path", () => scrollToEl($("#level-" + lv.id))) })),
@@ -481,6 +485,11 @@
   buildDoctorList();
   $("#forget").addEventListener("click", forgetEverything);
   $("#doctor-q").addEventListener("input", renderDoctorSearch);
+  // The home page's "Something broken?" box hands the pasted error to Troubleshoot.
+  const doorGo = () => { $("#doctor-q").value = $("#door-q").value; goTab("doctor", () => { renderDoctorSearch(); $("#doctor-q").focus(); }); };
+  $("#door-go").addEventListener("click", doorGo);
+  // preventDefault keeps the Enter out of the Troubleshoot textarea that doorGo focuses.
+  $("#door-q").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doorGo(); } });
   $("#cheat-q").addEventListener("input", renderCheats);
   $("#cta-start").addEventListener("click", (e) => { e.preventDefault(); scrollToEl($("#path-title")); });
   renderFill();

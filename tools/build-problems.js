@@ -26,7 +26,7 @@ function build(Q, titles) {
 <h3>${esc(d.title)}</h3>
 <h4>Error text</h4>
 <pre class="error-text"><code>${d.errors.map(esc).join("\n")}</code></pre>
-<h4>What it means</h4>
+<h4>Why it happens</h4>
 <p>${rich(d.meaning)}</p>
 <h4>Likely causes</h4>
 ${list(d.causes)}
@@ -36,7 +36,7 @@ ${list(d.causes)}
 ${list(d.fix)}
 <h4>Prevent it</h4>
 ${list(d.prevent)}
-<p class="note">${practise ? `Practise it: ${practise} · ` : ""}Learn it: <a href="index.html#level-${lv.id}">Level ${lv.id} · ${esc(lv.title)}</a> · <a href="index.html#fix/${id}">Open in the site</a></p>
+<p class="note"><strong>Now learn it:</strong> ${practise ? `break and fix it yourself in ${practise}, then take` : "take"} <a href="index.html#level-${lv.id}">Level ${lv.id} · ${esc(lv.title)}</a>. <a href="index.html#fix/${id}">Open in the site</a></p>
 </section>`;
   }).join("\n");
   return `<!doctype html>
@@ -59,7 +59,7 @@ ${list(d.prevent)}
 <main class="wrap problems">
 <p class="eyebrow"><a href="index.html">AWS Quest</a></p>
 <h1>Common AWS errors and how to fix them</h1>
-<p class="lede">${Q.doctor.length} problems, each with the exact error text, what it means, the likely causes, how to confirm, the fix and how to prevent it. To search by pasting an error, use the <a href="index.html#doctor">interactive version</a>.</p>
+<p class="lede">${Q.doctor.length} problems, each with the exact error text, why it happens, the likely causes, how to confirm, the fix and how to prevent it. Then learn it for good: break and fix each one yourself in the <a href="index.html#pg-title">browser playground</a>. To search by pasting an error, use the <a href="index.html#doctor">interactive version</a>.</p>
 <nav class="card problems-index" aria-label="Problems">
 ${index}
 </nav>

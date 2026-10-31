@@ -23,12 +23,18 @@
         AWS Quest
       </a>
       <nav aria-label="Sections">
-        <a href="#path" data-tab="path">Path</a>
-        <a href="#quiz" data-tab="quiz">Quiz</a>
-        <a href="#xray" data-tab="xray">Policy X-ray</a>
-        <a href="#doctor" data-tab="doctor">Troubleshoot</a>
-        <a href="#cheats" data-tab="cheats">Cheat sheet</a>
-        <a href="#arch" data-tab="arch">AWS arch</a>
+        <div class="mode learn" role="group" aria-label="Learn">
+          <span class="mode-k">Learn</span>
+          <a href="#path" data-tab="path">Path</a>
+          <a href="#quiz" data-tab="quiz">Quiz</a>
+          <a href="#xray" data-tab="xray">Policy X-ray</a>
+          <a href="#arch" data-tab="arch">AWS arch</a>
+        </div>
+        <div class="mode fix" role="group" aria-label="Fix">
+          <span class="mode-k">Fix</span>
+          <a href="#doctor" data-tab="doctor">Troubleshoot</a>
+          <a href="#cheats" data-tab="cheats">Cheat sheet</a>
+        </div>
       </nav>
       <button type="button" class="kbd-btn" id="palette-open" aria-label="Search the site (Ctrl+K)"><span>Search</span><kbd id="palette-key">Ctrl K</kbd></button>
       <a class="gh" id="gh-link" href="#">GitHub</a>
@@ -43,9 +49,25 @@
             <p class="eyebrow">AWS Quest</p>
             <h1>The cloud, without<br>the surprise bill.</h1>
             <p class="sub">IAM, networking, compute and storage, and the cost traps, practised on a simulated account that never touches a real one.</p>
-            <div class="actions">
-              <a class="btn" id="cta-start" href="#path-title">Start the path</a>
-              <a class="link" href="#pg-title">Try a scenario</a>
+          </div>
+          <div class="doors">
+            <div class="door learn">
+              <p class="door-k">Learning AWS?</p>
+              <h2>Start from zero, step by step.</h2>
+              <p>Levels in order, each with a hands-on incident to fix on a simulated account.</p>
+              <div class="actions">
+                <a class="btn" id="cta-start" href="#path-title">Start the path</a>
+                <a class="link" href="#pg-title">Try a scenario</a>
+              </div>
+            </div>
+            <div class="door fix">
+              <p class="door-k">Something broken right now?</p>
+              <h2>Paste the error, get the fix.</h2>
+              <p>The cause, the commands to confirm it and the fix, for every common AWS error.</p>
+              <div class="door-search">
+                <input id="door-q" type="search" placeholder="Paste the error here" aria-label="Paste an error" autocomplete="off" spellcheck="false">
+                <button type="button" class="pill" id="door-go">Find the fix</button>
+              </div>
             </div>
           </div>
           <div class="stage" id="stage" aria-label="A VPC with and without a NAT gateway"></div>
@@ -63,9 +85,9 @@
           <div class="bento">
             <a class="tile wide" href="#pg-title"><div><div class="k">Playground</div><h3>A simulated account.</h3></div><p>AccessDenied, unreachable instances, public buckets and runaway costs, with the real aws CLI and real error messages.</p></a>
             <a class="tile wide" href="#xray"><div><div class="k">Policy X-ray</div><h3>IAM, read aloud.</h3></div><p>Paste a policy: what it really allows, statement by statement, and what is risky.</p></a>
-            <a class="tile" href="#doctor"><div><div class="k">Troubleshoot</div><h3>Paste the error.</h3></div><p>Meaning, cause, confirm, fix, prevent.</p></a>
             <a class="tile" href="#quiz"><div><div class="k">Quiz</div><h3>Exam-style, explained.</h3></div><p>Every answer comes with the reasoning.</p></a>
             <a class="tile" href="#arch"><div><div class="k">Architecture</div><h3>Region to subnet.</h3></div><p>Every component, how it fails.</p></a>
+            <a class="tile" href="#doctor"><div><div class="k">Stuck on an error?</div><h3>Learn why it happens, then practise the fix.</h3></div></a>
           </div>
         </section>
 
@@ -187,8 +209,9 @@ aws ec2 describe-volumes --filters Name=status,Values=available</code></pre>
     </section>
 
     <section id="tab-doctor" class="tab wrap" hidden>
-      <h2>Troubleshoot an AWS error</h2>
-      <p class="lede">Paste the error message, or pick a symptom. Each entry gives the exact error text, what it means, the causes, how to confirm, the fix, how to prevent it, and a scenario to practise.</p>
+      <p class="mode-banner"><strong>Fix mode.</strong> For when something is broken right now. Learning AWS instead? <a href="#path">Start the path</a>.</p>
+      <h2>Stuck on an error?</h2>
+      <p class="lede">Paste the error message, or pick a symptom. Each answer explains why it happens, how to confirm it and how to fix and prevent it, then gives you a safe scenario to break and fix it yourself, so you recognise it next time.</p>
       <div class="guide-slot" data-guide="doctor"></div>
       <label class="field wide-field">Paste an error, or search
         <textarea id="doctor-q" rows="2" spellcheck="false" placeholder="An error occurred (AccessDenied) when calling the ListObjectsV2 operation: ..."></textarea>
