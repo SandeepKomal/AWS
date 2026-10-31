@@ -4,7 +4,7 @@ Hands-on **AWS examples, AWS CLI commands, CloudFormation templates, networking 
 
 This repository is built as a practical reference for cloud and DevOps engineers learning or operating AWS environments.
 
-## AWS Quest: learn it by fixing it
+## DevOps Nimbus AWS: zero to on-call, in your browser
 
 **[sandeepkomal.github.io/AWS](https://sandeepkomal.github.io/AWS/)** is a free site built from this repository:
 
@@ -61,7 +61,7 @@ Deployments/
 
 IAM.md
 Linux/
-site/        AWS Quest, the learning site (GitHub Pages)
+site/        DevOps Nimbus AWS, the learning site (GitHub Pages)
 tests/       Node checks for the site: data, simulator, fuzzer, X-ray, problems page
 tools/       build-problems.js: generates site/problems.html and site/sitemap.xml
 ```

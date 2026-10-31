@@ -12,8 +12,8 @@ global.window = {};
 require(path.join(root, "site/data.js"));
 require(path.join(root, "site/quiz-bank.js"));
 require(path.join(root, "site/playground.js"));
-const Q = window.QUEST;
-const quiz = window.QUEST_QUIZ;
+const Q = window.TRACK;
+const quiz = window.TRACK_QUIZ;
 const { SCENARIOS, Account, shell, fillBlanks } = window.AQSim;
 const scenarioIds = new Set(SCENARIOS.map((s) => s.id));
 const ticks = (text, where) => assert.strictEqual((String(text).match(/`/g) || []).length % 2, 0, `${where}: unbalanced backticks in "${text}"`);
@@ -104,7 +104,7 @@ for (const page of ["index.html", "problems.html"]) {
   assert.match(html, /<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">/, `${page}: CSP`);
   assert.doesNotMatch(html, /\sstyle=|\son[a-z]+=|<script>(?!<\/script>)/i, `${page}: no inline styles, handlers or scripts`);
   for (const src of html.match(/(?:src|href)="(?!https?:|#|index\.html#|mailto:)[^"]+"/g) || []) assert.ok(fs.existsSync(path.join(root, "site", src.replace(/^\w+="|"$/g, "").split("#")[0])), `${page}: ${src} exists`);
-  for (const ext of html.match(/(?:src|href)="https?:[^"]+"/g) || []) assert.match(ext, /^href="https:\/\/(github\.com\/SandeepKomal|sandeepkomal\.github\.io\/AWS\/|aws\.amazon\.com\/pricing\/|calculator\.aws\/)/, `${page}: only plain links leave the site: ${ext}`);
+  for (const ext of html.match(/(?:src|href)="https?:[^"]+"/g) || []) assert.match(ext, /^href="https:\/\/(github\.com\/SandeepKomal|sandeepkomal\.github\.io\/(AWS|devops-nimbus)\/|aws\.amazon\.com\/pricing\/|calculator\.aws\/)/, `${page}: only plain links leave the site: ${ext}`);
   assert.doesNotMatch(html, /<script[^>]+src="https?:|<link[^>]+href="https?:[^"]+"[^>]*rel="stylesheet"/, `${page}: nothing loaded from other sites`);
   assert.match(html, /<meta name="description" content="[^"]{80,}">/, `${page}: description`);
   assert.match(html, /<meta property="og:title"/, `${page}: Open Graph`);
@@ -112,7 +112,7 @@ for (const page of ["index.html", "problems.html"]) {
   assert.match(html, /© 2024–2026 Sandeep Komal Pothu and contributors\./, `${page}: copyright`);
 }
 const index = fs.readFileSync(path.join(root, "site/index.html"), "utf8");
-assert.match(index, /<title>AWS Quest<\/title>/);
+assert.match(index, /<title>AWS · DevOps Nimbus<\/title>/);
 assert.match(index, /The playground is a simulation: it never connects to AWS or touches a real account\./);
 assert.match(index, /illustrative us-east-1 list prices as of June 2026/);
 assert.match(index, /<button type="button" class="link-btn" id="forget">Clear it<\/button>/);

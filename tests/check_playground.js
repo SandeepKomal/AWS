@@ -66,15 +66,15 @@ fixed(a, "expired: unset and log in");
 assert.match(run(a, "aws sts get-caller-identity"), /"Arn": "arn:aws:sts::111122223333:assumed-role\/PlatformAdmin\/you"/);
 
 a = fresh("s3list");
-assert.match(run(a, "aws s3 ls s3://quest-kitchen-reports --profile analyst"), /An error occurred \(AccessDenied\) when calling the ListObjectsV2 operation: User: arn:aws:iam::111122223333:user\/analyst is not authorized to perform: s3:ListBucket on resource: "arn:aws:s3:::quest-kitchen-reports" because no identity-based policy allows the s3:ListBucket action/);
-assert.match(run(a, "aws s3 cp s3://quest-kitchen-reports/monthly/2026-10.csv . --profile analyst"), /download: s3:\/\/quest-kitchen-reports\/monthly\/2026-10.csv to .\/2026-10.csv/);
+assert.match(run(a, "aws s3 ls s3://nimbus-kitchen-reports --profile analyst"), /An error occurred \(AccessDenied\) when calling the ListObjectsV2 operation: User: arn:aws:iam::111122223333:user\/analyst is not authorized to perform: s3:ListBucket on resource: "arn:aws:s3:::nimbus-kitchen-reports" because no identity-based policy allows the s3:ListBucket action/);
+assert.match(run(a, "aws s3 cp s3://nimbus-kitchen-reports/monthly/2026-10.csv . --profile analyst"), /download: s3:\/\/nimbus-kitchen-reports\/monthly\/2026-10.csv to .\/2026-10.csv/);
 run(a, "aws iam attach-user-policy --user-name analyst --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess");
-assert.match(run(a, "aws s3 ls s3://quest-kitchen-reports --profile analyst"), /PRE monthly\//);
+assert.match(run(a, "aws s3 ls s3://nimbus-kitchen-reports --profile analyst"), /PRE monthly\//);
 broken(a, "AmazonS3ReadOnlyAccess also opens payroll");
 run(a, "aws iam detach-user-policy --user-name analyst --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess");
 assert.match(run(a, "aws iam put-user-policy --user-name analyst --policy-name x --policy-document '{bad'"), /MalformedPolicyDocument\) when calling the PutUserPolicy operation: Syntax errors in policy/);
 assert.match(run(a, "aws iam put-user-policy --user-name analyst --policy-name x --policy-document file://nope.json"), /Unable to load paramfile file:\/\/nope.json: \[Errno 2\] No such file or directory: 'nope.json'/);
-edit(a, "reports-read.json", (d) => ({ ...d, Statement: [...d.Statement, { Effect: "Allow", Action: "s3:ListBucket", Resource: "arn:aws:s3:::quest-kitchen-reports" }] }));
+edit(a, "reports-read.json", (d) => ({ ...d, Statement: [...d.Statement, { Effect: "Allow", Action: "s3:ListBucket", Resource: "arn:aws:s3:::nimbus-kitchen-reports" }] }));
 assert.strictEqual(run(a, "aws iam put-user-policy --user-name analyst --policy-name reports-read --policy-document file://reports-read.json"), "");
 fixed(a, "s3list: ListBucket on the bucket ARN");
 
@@ -115,13 +115,13 @@ assert.match(run(a, wi), /AccessDenied\) when calling the AssumeRoleWithWebIdent
 edit(a, "trust.json", (d) => { d.Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] = "repo:*"; return d; });
 run(a, "aws iam update-assume-role-policy --role-name gh-deploy --policy-document file://trust.json");
 broken(a, "repo:* trusts every repository on GitHub");
-edit(a, "trust.json", (d) => { d.Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] = "repo:SandeepKomal/quest-kitchen:*"; return d; });
+edit(a, "trust.json", (d) => { d.Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] = "repo:SandeepKomal/nimbus-kitchen:*"; return d; });
 run(a, "aws iam update-assume-role-policy --role-name gh-deploy --policy-document file://trust.json");
 broken(a, "repo:...:* also trusts pull requests");
-edit(a, "trust.json", (d) => { d.Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] = "repo:SandeepKomal/quest-kitchen:ref:refs/heads/main"; return d; });
+edit(a, "trust.json", (d) => { d.Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] = "repo:SandeepKomal/nimbus-kitchen:ref:refs/heads/main"; return d; });
 run(a, "aws iam update-assume-role-policy --role-name gh-deploy --policy-document file://trust.json");
 fixed(a, "oidc: exact repository and branch");
-assert.match(run(a, wi), /"SubjectFromWebIdentityToken": "repo:SandeepKomal\/quest-kitchen:ref:refs\/heads\/main"/);
+assert.match(run(a, wi), /"SubjectFromWebIdentityToken": "repo:SandeepKomal\/nimbus-kitchen:ref:refs\/heads\/main"/);
 
 a = fresh("passrole");
 const launch = `aws ec2 run-instances --image-id ${AMI} --instance-type t3.micro --subnet-id ${id(a, "subnet", "private-a")} --iam-instance-profile Name=web-role --profile dev`;
@@ -139,11 +139,11 @@ run(a, launch);
 fixed(a, "passrole: scoped PassRole and launched");
 
 a = fresh("scp");
-assert.match(run(a, "aws s3 mb s3://quest-kitchen-archive-eu --region eu-central-1"), /make_bucket failed: s3:\/\/quest-kitchen-archive-eu An error occurred \(AccessDenied\) when calling the CreateBucket operation: .* with an explicit deny in a service control policy/);
+assert.match(run(a, "aws s3 mb s3://nimbus-kitchen-archive-eu --region eu-central-1"), /make_bucket failed: s3:\/\/nimbus-kitchen-archive-eu An error occurred \(AccessDenied\) when calling the CreateBucket operation: .* with an explicit deny in a service control policy/);
 assert.match(run(a, "aws organizations list-policies --filter SERVICE_CONTROL_POLICY"), /AccessDeniedException\) when calling the ListPolicies operation: You don't have permissions to access this resource/);
-run(a, "aws s3 mb s3://quest-kitchen-archive-eu --region ap-south-1");
+run(a, "aws s3 mb s3://nimbus-kitchen-archive-eu --region ap-south-1");
 broken(a, "ap-south-1 is denied too");
-assert.strictEqual(run(a, "aws s3 mb s3://quest-kitchen-archive-eu --region eu-west-1"), "make_bucket: quest-kitchen-archive-eu");
+assert.strictEqual(run(a, "aws s3 mb s3://nimbus-kitchen-archive-eu --region eu-west-1"), "make_bucket: nimbus-kitchen-archive-eu");
 fixed(a, "scp: allowed Region");
 
 // Networking
@@ -268,56 +268,56 @@ assert.match(run(a, "aws autoscaling describe-scaling-activities --auto-scaling-
 
 // Storage
 a = fresh("publicbucket");
-assert.match(run(a, "curl https://quest-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf"), /invoice 1042/);
-assert.match(run(a, "aws s3api get-bucket-policy-status --bucket quest-kitchen-invoices"), /"IsPublic": true/);
-assert.match(run(a, "aws s3api put-bucket-acl --bucket quest-kitchen-invoices --acl private"), /AccessControlListNotSupported/);
+assert.match(run(a, "curl https://nimbus-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf"), /invoice 1042/);
+assert.match(run(a, "aws s3api get-bucket-policy-status --bucket nimbus-kitchen-invoices"), /"IsPublic": true/);
+assert.match(run(a, "aws s3api put-bucket-acl --bucket nimbus-kitchen-invoices --acl private"), /AccessControlListNotSupported/);
 broken(a, "ACLs are not the problem");
-assert.match(run(a, "aws s3 rb s3://quest-kitchen-invoices"), /BucketNotEmpty/);
-run(a, "aws s3api put-public-access-block --bucket quest-kitchen-invoices --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true");
-assert.match(run(a, "curl https://quest-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf"), /<Code>AccessDenied<\/Code>/);
+assert.match(run(a, "aws s3 rb s3://nimbus-kitchen-invoices"), /BucketNotEmpty/);
+run(a, "aws s3api put-public-access-block --bucket nimbus-kitchen-invoices --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true");
+assert.match(run(a, "curl https://nimbus-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf"), /<Code>AccessDenied<\/Code>/);
 fixed(a, "publicbucket: Block Public Access");
 a = fresh("publicbucket");
-run(a, "aws s3 rb s3://quest-kitchen-invoices --force");
+run(a, "aws s3 rb s3://nimbus-kitchen-invoices --force");
 broken(a, "deleting the bucket also breaks the app");
 
 a = fresh("ownership");
-assert.match(run(a, "aws s3 cp s3://quest-kitchen-imports/orders/2026-10-30.csv . --profile import"), /fatal error: An error occurred \(403\) when calling the HeadObject operation: Forbidden/);
+assert.match(run(a, "aws s3 cp s3://nimbus-kitchen-imports/orders/2026-10-30.csv . --profile import"), /fatal error: An error occurred \(403\) when calling the HeadObject operation: Forbidden/);
 const me = run(a, "aws s3api list-buckets --query Owner.ID --output text");
-assert.match(run(a, "aws s3api list-object-versions --bucket quest-kitchen-imports --prefix orders/ --query 'Versions[].[Key,Owner.ID]' --output text"), /orders\/2026-10-30.csv\t[0-9a-f]{64}/);
-assert.doesNotMatch(run(a, "aws s3api list-object-versions --bucket quest-kitchen-imports --prefix orders/ --query 'Versions[].Owner.ID' --output text"), new RegExp(me));
+assert.match(run(a, "aws s3api list-object-versions --bucket nimbus-kitchen-imports --prefix orders/ --query 'Versions[].[Key,Owner.ID]' --output text"), /orders\/2026-10-30.csv\t[0-9a-f]{64}/);
+assert.doesNotMatch(run(a, "aws s3api list-object-versions --bucket nimbus-kitchen-imports --prefix orders/ --query 'Versions[].Owner.ID' --output text"), new RegExp(me));
 run(a, `aws iam put-role-policy --role-name import-job --policy-name all-s3 --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"*"}]}'`);
 broken(a, "IAM cannot grant access to another account's object");
-run(a, "aws s3api put-bucket-ownership-controls --bucket quest-kitchen-imports --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'");
+run(a, "aws s3api put-bucket-ownership-controls --bucket nimbus-kitchen-imports --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'");
 fixed(a, "ownership: bucket owner enforced");
-assert.match(run(a, "aws s3 cp s3://quest-kitchen-imports/orders/2026-10-30.csv . --profile import"), /download:/);
+assert.match(run(a, "aws s3 cp s3://nimbus-kitchen-imports/orders/2026-10-30.csv . --profile import"), /download:/);
 
 a = fresh("undelete");
-const versions = JSON.parse(run(a, "aws s3api list-object-versions --bucket quest-kitchen-config --prefix prod/app.json"));
+const versions = JSON.parse(run(a, "aws s3api list-object-versions --bucket nimbus-kitchen-config --prefix prod/app.json"));
 const marker = versions.DeleteMarkers[0].VersionId;
 assert.ok(versions.DeleteMarkers[0].IsLatest);
-run(a, "aws s3api put-bucket-versioning --bucket quest-kitchen-config --versioning-configuration Status=Enabled");
+run(a, "aws s3api put-bucket-versioning --bucket nimbus-kitchen-config --versioning-configuration Status=Enabled");
 broken(a, "versioning was already on");
-run(a, `aws s3api copy-object --bucket quest-kitchen-config --key prod/app.json --copy-source quest-kitchen-config/prod/app.json?versionId=${versions.Versions[1].VersionId}`);
+run(a, `aws s3api copy-object --bucket nimbus-kitchen-config --key prod/app.json --copy-source nimbus-kitchen-config/prod/app.json?versionId=${versions.Versions[1].VersionId}`);
 broken(a, "the oldest version is not the latest");
 a = fresh("undelete");
-assert.match(run(a, "aws s3api get-object --bucket quest-kitchen-config --key prod/app.json app.json"), /NoSuchKey/);
-run(a, `aws s3api delete-object --bucket quest-kitchen-config --key prod/app.json --version-id ${marker}`);
+assert.match(run(a, "aws s3api get-object --bucket nimbus-kitchen-config --key prod/app.json app.json"), /NoSuchKey/);
+run(a, `aws s3api delete-object --bucket nimbus-kitchen-config --key prod/app.json --version-id ${marker}`);
 fixed(a, "undelete: marker removed");
 
 a = fresh("nosuchbucket");
 run(a, "aws lambda invoke --function-name thumbnailer out.json");
 assert.match(run(a, "cat out.json"), /"errorType":"NoSuchBucket"/);
-assert.strictEqual(run(a, "aws s3 mb s3://quest-kitchen-uplaods"), "make_bucket: quest-kitchen-uplaods");
+assert.strictEqual(run(a, "aws s3 mb s3://nimbus-kitchen-uplaods"), "make_bucket: nimbus-kitchen-uplaods");
 broken(a, "a bucket with the typo hides the bug");
-run(a, "aws lambda update-function-configuration --function-name thumbnailer --environment 'Variables={BUCKET=quest-kitchen-uploads,SIZE=320}'");
+run(a, "aws lambda update-function-configuration --function-name thumbnailer --environment 'Variables={BUCKET=nimbus-kitchen-uploads,SIZE=320}'");
 fixed(a, "nosuchbucket: env var fixed");
 
 a = fresh("bucketexists");
 assert.match(run(a, "aws s3 mb s3://menu-photos --region eu-west-1"), /BucketAlreadyExists\) when calling the CreateBucket operation: The requested bucket name is not available/);
-assert.match(run(a, "aws s3api create-bucket --bucket quest-kitchen-menu-photos-111122223333 --region eu-west-1"), /IllegalLocationConstraintException/);
-run(a, "aws s3 mb s3://quest-kitchen-menu-photos-111122223333");
+assert.match(run(a, "aws s3api create-bucket --bucket nimbus-kitchen-menu-photos-111122223333 --region eu-west-1"), /IllegalLocationConstraintException/);
+run(a, "aws s3 mb s3://nimbus-kitchen-menu-photos-111122223333");
 broken(a, "us-east-1 is the wrong Region");
-run(a, "aws s3api create-bucket --bucket quest-kitchen-menu-eu-111122223333 --region eu-west-1 --create-bucket-configuration LocationConstraint=eu-west-1");
+run(a, "aws s3api create-bucket --bucket nimbus-kitchen-menu-eu-111122223333 --region eu-west-1 --create-bucket-configuration LocationConstraint=eu-west-1");
 fixed(a, "bucketexists: unique name in eu-west-1");
 
 // Databases
@@ -490,12 +490,12 @@ run(a, "aws logs put-retention-policy --log-group-name /vpc/flow-logs --retentio
 fixed(a, "logretention: set");
 
 a = fresh("s3versions");
-run(a, "aws s3api put-bucket-lifecycle-configuration --bucket quest-kitchen-backups --lifecycle-configuration file://lifecycle.json");
+run(a, "aws s3api put-bucket-lifecycle-configuration --bucket nimbus-kitchen-backups --lifecycle-configuration file://lifecycle.json");
 broken(a, "Expiration deletes the current backups");
-run(a, "aws s3api put-bucket-versioning --bucket quest-kitchen-backups --versioning-configuration Status=Suspended");
+run(a, "aws s3api put-bucket-versioning --bucket nimbus-kitchen-backups --versioning-configuration Status=Suspended");
 broken(a, "suspending keeps the old versions");
 a.files["lifecycle.json"] = JSON.stringify({ Rules: [{ ID: "expire-old-versions", Status: "Enabled", Filter: {}, NoncurrentVersionExpiration: { NoncurrentDays: 30 } }] });
-run(a, "aws s3api put-bucket-lifecycle-configuration --bucket quest-kitchen-backups --lifecycle-configuration file://lifecycle.json");
+run(a, "aws s3api put-bucket-lifecycle-configuration --bucket nimbus-kitchen-backups --lifecycle-configuration file://lifecycle.json");
 fixed(a, "s3versions: noncurrent expiration");
 
 // Security
@@ -547,8 +547,8 @@ run(a, `aws ssm start-session --target ${id(a, "i", "bastion")}`);
 fixed(a, "sshworld: closed, Session Manager works");
 
 a = fresh("kmsdecrypt");
-const cp = "aws s3 cp s3://quest-kitchen-payments/settlements/2026-10-29.csv . --profile payments";
-assert.match(run(a, cp), /download failed: s3:\/\/quest-kitchen-payments\/settlements\/2026-10-29.csv to .\/2026-10-29.csv An error occurred \(AccessDenied\) when calling the GetObject operation: User: arn:aws:sts::111122223333:assumed-role\/payments-app\/you is not authorized to perform: kms:Decrypt on resource: arn:aws:kms:us-east-1:111122223333:key\/[0-9a-f-]+ because no resource-based policy allows the kms:Decrypt action/);
+const cp = "aws s3 cp s3://nimbus-kitchen-payments/settlements/2026-10-29.csv . --profile payments";
+assert.match(run(a, cp), /download failed: s3:\/\/nimbus-kitchen-payments\/settlements\/2026-10-29.csv to .\/2026-10-29.csv An error occurred \(AccessDenied\) when calling the GetObject operation: User: arn:aws:sts::111122223333:assumed-role\/payments-app\/you is not authorized to perform: kms:Decrypt on resource: arn:aws:kms:us-east-1:111122223333:key\/[0-9a-f-]+ because no resource-based policy allows the kms:Decrypt action/);
 run(a, "aws iam attach-role-policy --role-name payments-app --policy-arn arn:aws:iam::aws:policy/AdministratorAccess");
 broken(a, "AdministratorAccess does not get past a key policy");
 edit(a, "key-policy.json", () => ({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { AWS: "arn:aws:iam::111122223333:role/payments-app" }, Action: "kms:*", Resource: "*" }] }));
@@ -586,13 +586,13 @@ fixed(a, "cfcert: validated us-east-1 certificate attached");
 assert.match(run(a, "curl -i https://www.example.com"), /HTTP\/1.1 200 OK[\s\S]*X-Cache: (Miss|Hit) from cloudfront/);
 
 a = fresh("cfcache");
-assert.match(run(a, "curl -i https://www.example.com"), /X-Cache: Hit from cloudfront[\s\S]*Quest Kitchen 1.8/);
-run(a, "aws s3 cp s3://quest-kitchen-web/index.html index.html && aws s3 cp index.html s3://quest-kitchen-web/index.html");
+assert.match(run(a, "curl -i https://www.example.com"), /X-Cache: Hit from cloudfront[\s\S]*Nimbus Kitchen 1.8/);
+run(a, "aws s3 cp s3://nimbus-kitchen-web/index.html index.html && aws s3 cp index.html s3://nimbus-kitchen-web/index.html");
 broken(a, "uploading again does not touch the edge cache");
 assert.match(run(a, `aws cloudfront create-invalidation --distribution-id ${a.dists[0].id} --paths /index.html`), /"Status": "InProgress"/);
 run(a, "echo");
 fixed(a, "cfcache: invalidated");
-assert.match(run(a, "curl https://www.example.com"), /Quest Kitchen 1.9/);
+assert.match(run(a, "curl https://www.example.com"), /Nimbus Kitchen 1.9/);
 
 a = fresh("peering");
 run(a, `aws ssm start-session --target ${id(a, "i", "web-1")}`);
@@ -691,18 +691,18 @@ run(a, `aws sqs set-queue-attributes --queue-url ${qurl} --attributes Visibility
 fixed(a, "sqsdupes: visibility above processing time");
 
 a = fresh("s3cors");
-const url = run(a, "aws s3 presign s3://quest-kitchen-media/menu.json --expires-in 300");
-assert.match(url, /^https:\/\/quest-kitchen-media\.s3\.us-east-1\.amazonaws\.com\/menu\.json\?X-Amz-Algorithm=AWS4-HMAC-SHA256&.*X-Amz-Signature=[0-9a-f]{64}$/);
+const url = run(a, "aws s3 presign s3://nimbus-kitchen-media/menu.json --expires-in 300");
+assert.match(url, /^https:\/\/nimbus-kitchen-media\.s3\.us-east-1\.amazonaws\.com\/menu\.json\?X-Amz-Algorithm=AWS4-HMAC-SHA256&.*X-Amz-Signature=[0-9a-f]{64}$/);
 assert.doesNotMatch(run(a, `curl -i -H 'Origin: https://shop.example.com' '${url}'`), /Access-Control-Allow-Origin/);
-assert.match(run(a, "aws s3api get-bucket-cors --bucket quest-kitchen-media"), /NoSuchCORSConfiguration\) when calling the GetBucketCors operation: The CORS configuration does not exist/);
-run(a, "aws s3api put-bucket-cors --bucket quest-kitchen-media --cors-configuration file://cors.json");
+assert.match(run(a, "aws s3api get-bucket-cors --bucket nimbus-kitchen-media"), /NoSuchCORSConfiguration\) when calling the GetBucketCors operation: The CORS configuration does not exist/);
+run(a, "aws s3api put-bucket-cors --bucket nimbus-kitchen-media --cors-configuration file://cors.json");
 broken(a, "the wrong origin");
 assert.match(run(a, `curl -i -X OPTIONS -H 'Origin: https://shop.example.com' -H 'Access-Control-Request-Method: GET' '${url}'`), /CORSResponse: This CORS request is not allowed/);
 edit(a, "cors.json", (d) => { d.CORSRules[0].AllowedOrigins = ["*"]; return d; });
-run(a, "aws s3api put-bucket-cors --bucket quest-kitchen-media --cors-configuration file://cors.json");
+run(a, "aws s3api put-bucket-cors --bucket nimbus-kitchen-media --cors-configuration file://cors.json");
 broken(a, "any origin is too broad");
 edit(a, "cors.json", (d) => { d.CORSRules[0].AllowedOrigins = ["https://shop.example.com"]; return d; });
-run(a, "aws s3api put-bucket-cors --bucket quest-kitchen-media --cors-configuration file://cors.json");
+run(a, "aws s3api put-bucket-cors --bucket nimbus-kitchen-media --cors-configuration file://cors.json");
 fixed(a, "s3cors: exact origin");
 assert.match(run(a, `curl -i -H 'Origin: https://shop.example.com' '${url}'`), /Access-Control-Allow-Origin: https:\/\/shop.example.com/);
 

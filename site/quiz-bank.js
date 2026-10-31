@@ -1,6 +1,6 @@
-// Question bank for the AWS Quest quiz: q, options, answer (index), why. Plain data, no logic.
+// Question bank for the DevOps Nimbus AWS quiz: q, options, answer (index), why. Plain data, no logic.
 "use strict";
-window.QUEST_QUIZ = {
+window.TRACK_QUIZ = {
   "00": [
     { q: "A script fails with ExpiredToken. `aws configure list` shows the access key Type is `env`. You already ran `aws sso login`. What is still wrong?",
       options: ["The SSO start URL is wrong", "Stale AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN variables override the profile", "The Region is not set", "The account is suspended"], answer: 1,

@@ -1,8 +1,8 @@
-// AWS Quest site. No dependencies, no network requests.
+// DevOps Nimbus AWS site. No dependencies, no network requests.
 "use strict";
 
 (function () {
-  const Q = window.QUEST;
+  const Q = window.TRACK;
   const $ = (sel) => document.querySelector(sel);
   const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const scrollToEl = (el) => el.scrollIntoView({ block: "start", behavior: still() ? "auto" : "smooth" });
@@ -52,7 +52,6 @@
       known.map((id) => h("a.chip", { href: "#play/" + id }, titles[id]))) : null;
   };
   const repoUrl = (p) => `${Q.repo}/${/\.[a-z]+$|S3FullAccess$|\/[^/.]+-\d$|userdata|cft_launch_template/.test(p) ? "blob" : "tree"}/main/${p.split("/").map(encodeURIComponent).join("/")}`;
-  $("#gh-link").href = Q.repo;
   document.querySelectorAll("[data-repo]").forEach((a) => { a.href = Q.repo + a.dataset.repo; });
 
   // --- tabs and deep links -----------------------------------------------------
@@ -75,7 +74,7 @@
     });
     if (want === "fix" && sub) openProblem(sub);
     if (want === "play" && sub && PG()) PG().load(sub);
-    document.title = want === "fix" && sub && Q.doctor.find((d) => d.id === sub) ? `${Q.doctor.find((d) => d.id === sub).title} · AWS Quest` : "AWS Quest";
+    document.title = want === "fix" && sub && Q.doctor.find((d) => d.id === sub) ? `${Q.doctor.find((d) => d.id === sub).title} · AWS · DevOps Nimbus` : "AWS · DevOps Nimbus";
   }
   window.addEventListener("hashchange", () => {
     const before = current;
@@ -140,13 +139,13 @@
       const isDone = done.has(lv.id);
       list.append(h("li.level" + (isDone ? ".done" : ""), { id: "level-" + lv.id },
         h("input", { type: "checkbox", checked: isDone, "aria-label": `Mark level ${lv.id} complete`,
-          onchange: (e) => { if (e.target.checked) done.add(lv.id); else done.delete(lv.id); store.set("done", [...done]); renderPath(); } }),
+          onchange: (e) => { if (e.target.checked) done.add(lv.id); else done.delete(lv.id); store.set("done", [...done]); if (e.target.checked) window.DQEngage.active(); renderPath(); } }),
         h("span.num", null, lv.id),
         h("details.what", null,
           h("summary", null, h("span.title", null, lv.title), h("span.topic", null, lv.topic)),
           h("div.level-body", null,
             h("div", null, h("h4", null, "What you learn"), h("ul", null, lv.learn.map((t) => h("li", null, ...rich(t))))),
-            h("div", null, h("h4", null, "Lab in a sandbox account"), h("pre", null, h("code", null, lv.lab.join("\n")))),
+            h("div", null, h("h4", null, "Lab in a sandbox account"), window.DQEngage.order(lv, h("pre", null, h("code", null, lv.lab.join("\n"))))),
             h("p.level-links", null, "Notes in this repository: ", lv.docs.map((d, i) => [i ? " · " : "", h("a", { href: repoUrl(d) }, d)])),
             practiseRow(lv.practise, "Practise in the playground:"))),
         h("span.actions", null, h("a.small", { href: "#quiz", onclick: () => { $("#quiz-level").value = lv.id; renderQuiz(); } }, lv.id in scores ? `Quiz ${scores[lv.id]}%` : "Quiz"))));
@@ -177,7 +176,7 @@
   // --- quiz ----------------------------------------------------------------------
 
   const EXAM_SIZE = 20;
-  const questionsFor = (id) => (window.QUEST_QUIZ[id] || []).map((item) => ({ ...item, level: id }));
+  const questionsFor = (id) => (window.TRACK_QUIZ[id] || []).map((item) => ({ ...item, level: id }));
   function shuffle(list) {
     const a = [...list];
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -198,7 +197,7 @@
       bar.style.width = (answered / items.length * 100) + "%";
       if (answered !== items.length) return;
       const pct = Math.round(correct / items.length * 100);
-      if (!exam) { const all = store.get("quiz", {}); all[mode] = Math.max(all[mode] || 0, pct); store.set("quiz", all); renderPath(); }
+      if (!exam) { const all = store.get("quiz", {}); all[mode] = Math.max(all[mode] || 0, pct); store.set("quiz", all); window.DQEngage.active(); renderPath(); }
       score.append(h("p.result", null, h("strong", null, `${pct}%. `),
         pct === 100 ? "Perfect score." : pct >= 75 ? "Strong. Review the explanations you missed." : "Read the explanations, then practise the level and try again.",
         " ", h("button.linkish", { type: "button", onclick: renderQuiz }, exam ? "New exam" : "Try again")));

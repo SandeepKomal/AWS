@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, "..");
 function load() {
   const ctx = { window: {} };
   new Function("window", fs.readFileSync(path.join(root, "site/data.js"), "utf8"))(ctx.window);
-  return ctx.window.QUEST;
+  return ctx.window.TRACK;
 }
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const rich = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
@@ -45,7 +45,7 @@ ${list(d.prevent)}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Common AWS errors and how to fix them · AWS Quest</title>
+  <title>Common AWS errors and how to fix them · AWS · DevOps Nimbus</title>
   <meta name="description" content="What common AWS errors mean and how to fix them: AccessDenied, ExpiredToken, UnauthorizedOperation, iam:PassRole, connection timeouts, ALB 502/503/504, NoSuchBucket, KMS AccessDeniedException, Lambda timeouts and more.">
   <meta property="og:type" content="article">
   <meta property="og:title" content="Common AWS errors and how to fix them">
@@ -53,11 +53,11 @@ ${list(d.prevent)}
   <meta property="og:url" content="${Q.site}problems.html">
   <link rel="canonical" href="${Q.site}problems.html">
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
 <main class="wrap problems">
-<p class="eyebrow"><a href="index.html">AWS Quest</a></p>
+<p class="eyebrow"><a href="index.html">DevOps Nimbus · AWS</a></p>
 <h1>Common AWS errors and how to fix them</h1>
 <p class="lede">${Q.doctor.length} problems, each with the exact error text, why it happens, the likely causes, how to confirm, the fix and how to prevent it. Then learn it for good: break and fix each one yourself in the <a href="index.html#pg-title">browser playground</a>. To search by pasting an error, use the <a href="index.html#doctor">interactive version</a>.</p>
 <nav class="card problems-index" aria-label="Problems">
