@@ -15,3 +15,7 @@ Before opening a pull request:
 2. Remove account-specific IDs and secrets.
 3. Document the AWS Region and prerequisites.
 4. Explain what the example teaches.
+
+## Personal data
+
+Never include real personal data in issues, pull requests, examples, logs or tests: no Aadhaar, PAN, phone numbers, personal emails, addresses, bank details or customer records. Use made-up values and reserved domains such as `example.com`. See [PRIVACY.md](PRIVACY.md).

@@ -263,7 +263,7 @@ Also review the existing templates before production use. Some historical exampl
 
 The learning site runs in your browser: no accounts, cookies, trackers or database, and the playground never touches a real AWS account. Your progress stays in your browser unless you download it as a file. The site is free and hosted on GitHub Pages.
 
-Deploying the templates and examples in this repository creates real AWS resources, which can incur charges; delete them when you are finished.
+Deploying the templates and examples in this repository creates real AWS resources, which can incur charges; delete them when you are finished. See [PRIVACY.md](PRIVACY.md) for the full privacy policy.
 
 ## License and trademarks
 
