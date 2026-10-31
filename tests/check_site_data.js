@@ -104,7 +104,7 @@ for (const page of ["index.html", "problems.html"]) {
   assert.match(html, /<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">/, `${page}: CSP`);
   assert.doesNotMatch(html, /\sstyle=|\son[a-z]+=|<script>(?!<\/script>)/i, `${page}: no inline styles, handlers or scripts`);
   for (const src of html.match(/(?:src|href)="(?!https?:|#|index\.html#|mailto:)[^"]+"/g) || []) assert.ok(fs.existsSync(path.join(root, "site", src.replace(/^\w+="|"$/g, "").split("#")[0])), `${page}: ${src} exists`);
-  for (const ext of html.match(/(?:src|href)="https?:[^"]+"/g) || []) assert.match(ext, /^href="https:\/\/(github\.com\/SandeepKomal|sandeepkomal\.github\.io\/(AWS|devops-nimbus)\/|aws\.amazon\.com\/pricing\/|calculator\.aws\/)/, `${page}: only plain links leave the site: ${ext}`);
+  for (const ext of html.match(/(?:src|href)="https?:[^"]+"/g) || []) assert.match(ext, /^href="https:\/\/(github\.com\/SandeepKomal|docs\.github\.com\/en\/site-policy\/|sandeepkomal\.github\.io\/(AWS|devops-nimbus)\/|aws\.amazon\.com\/pricing\/|calculator\.aws\/)/, `${page}: only plain links leave the site: ${ext}`);
   assert.doesNotMatch(html, /<script[^>]+src="https?:|<link[^>]+href="https?:[^"]+"[^>]*rel="stylesheet"/, `${page}: nothing loaded from other sites`);
   assert.match(html, /<meta name="description" content="[^"]{80,}">/, `${page}: description`);
   assert.match(html, /<meta property="og:title"/, `${page}: Open Graph`);
