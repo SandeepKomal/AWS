@@ -570,7 +570,7 @@ kbd { font: 500 .72rem/1 "SF Mono", ui-monospace, Menlo, Consolas, monospace; le
 .problems { padding-top: 48px; }
 .problems h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); margin: 0 0 14px; }
 .problems .problem { margin: 0 0 18px; scroll-margin-top: 24px; }
-.problems .problem h3 { margin: 0; font-size: 1.3rem; }
+.problems .problem h3 { margin: 0; font-size: 1.3rem; overflow-wrap: anywhere; }
 .problems-index h2 { font-size: .9rem; color: var(--muted); margin: 14px 0 6px; }
 .problems-index ul { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
 .problems-index li { margin: 3px 0; break-inside: avoid; }
