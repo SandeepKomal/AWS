@@ -215,5 +215,7 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && (pinned || touring)) { pinned = null; stopTour(); select(null); } });
   matchMedia("(max-width: 720px)").addEventListener("change", draw);
   window.addEventListener("hashchange", () => { if (location.hash !== "#arch") stopTour(); enter(); });
-  window.addEventListener("DOMContentLoaded", () => { draw(); root.replaceChildren(figure, detail); enter(); });
+  // app.js loads this file when the tab is first needed, usually after the page has loaded.
+  const start = () => { draw(); root.replaceChildren(figure, detail); enter(); };
+  if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", start); else start();
 })();

@@ -42,8 +42,36 @@
     setTimeout(() => { button.textContent = "Copy link"; }, 1400);
   }
 
+  // The first screen needs only data.js, scenarios.js (a small index of the
+  // playground's incidents and prices), this file and engage.js. The rest loads
+  // in the background after the first paint, or at once when something needs it.
+  const LAZY = { quiz: ["quiz-bank.js"], xray: ["policy-xray.js"], play: ["playground.js"], arch: ["architecture.js"] };
+  const loading = {};
+  function loadScript(src) {
+    if (!loading[src]) {
+      loading[src] = new Promise((resolve, reject) => {
+        const el = document.createElement("script");
+        el.src = src;
+        el.async = false; // run in the order they were added
+        el.onload = resolve;
+        el.onerror = () => { delete loading[src]; el.remove(); reject(new Error("Could not load " + src)); };
+        document.body.append(el);
+      });
+    }
+    return loading[src];
+  }
+  const load = (srcs) => Promise.all(srcs.map(loadScript));
+  // What to draw once a feature's scripts have run (set further down).
+  const ready = {};
+  const needed = {};
+  const need = (what) => (needed[what] = needed[what] || load(LAZY[what]).then(() => { if (ready[what]) ready[what](); }, (e) => { delete needed[what]; throw e; }));
+  const warm = () => Promise.all(Object.keys(LAZY).map(need));
+
+  const SCENARIOS = window.TRACK_SCENARIOS || [];
   const PG = () => window.AQPlayground;
-  const scenarioTitles = () => Object.fromEntries((PG() ? PG().scenarios : []).map((x) => [x.id, x.title]));
+  // Run something in the playground once it has loaded.
+  const withPg = (fn) => (PG() ? fn(PG()) : need("play").then(() => fn(PG())));
+  const scenarioTitles = () => Object.fromEntries(SCENARIOS.map((x) => [x.id, x.title]));
   function practise(id) { location.hash = "play/" + id; }
   const practiseRow = (ids, label) => {
     const titles = scenarioTitles();
@@ -68,6 +96,7 @@
       page.classList.add("tab-in");
     }
     current = tab;
+    if (LAZY[tab]) need(tab);
     for (const t of tabs) $("#tab-" + t).hidden = t !== tab;
     const fixTabs = [...document.querySelectorAll(".mode.fix a[data-tab]")].map((a) => a.dataset.tab);
     const mode = fixTabs.includes(tab) ? "fix" : "learn";
@@ -77,7 +106,7 @@
       if (a.dataset.tab === tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
     if (want === "fix" && sub) openProblem(sub);
-    if (want === "play" && sub && PG()) PG().load(sub);
+    if (want === "play" && sub) { if (PG()) PG().load(sub); else need("play").then(() => { if (location.hash === "#play/" + sub) PG().load(sub); }); }
     document.title = want === "fix" && sub && Q.doctor.find((d) => d.id === sub) ? `${Q.doctor.find((d) => d.id === sub).title} · AWS · DevOps Nimbus` : "AWS · DevOps Nimbus";
   }
   window.addEventListener("hashchange", () => {
@@ -89,7 +118,7 @@
   // --- hero: the VPC, with and without a NAT gateway ----------------------------
 
   function renderSignature() {
-    const P = window.AQSim.PRICES;
+    const P = window.TRACK_PRICES;
     const natMonth = P.natHour * P.hours;
     const res = (cls, text) => h("span.res" + (cls ? "." + cls : ""), null, text);
     const nat = res("", "NAT gateway");
@@ -119,7 +148,7 @@
       h("div.probe.mono", null, h("span.dim", null, "app server $ curl -m 5 https://api.github.com  "), probe),
       h("div.meter", null, h("span.dim", null, "What it costs"), meter),
       h("p.stage-note", null, `Simulation. Illustrative us-east-1 prices as of ${P.asOf}. `, h("a", { href: "#play/nat" }, "Fix it yourself in the playground")));
-    $("#stat-scenarios").textContent = String(PG().scenarios.length);
+    $("#stat-scenarios").textContent = String(SCENARIOS.length);
     $("#stat-levels").textContent = String(Q.levels.length);
     $("#stat-problems").textContent = String(Q.doctor.length);
   }
@@ -180,13 +209,14 @@
   // --- quiz ----------------------------------------------------------------------
 
   const EXAM_SIZE = 20;
-  const questionsFor = (id) => (window.TRACK_QUIZ[id] || []).map((item) => ({ ...item, level: id }));
+  const questionsFor = (id) => ((window.TRACK_QUIZ || {})[id] || []).map((item) => ({ ...item, level: id }));
   function shuffle(list) {
     const a = [...list];
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
     return a;
   }
   function renderQuiz() {
+    if (!window.TRACK_QUIZ) { need("quiz").then(renderQuiz); return; }
     const mode = $("#quiz-level").value;
     const exam = mode === "exam";
     const items = exam ? shuffle(Q.levels.flatMap((l) => questionsFor(l.id))).slice(0, EXAM_SIZE) : questionsFor(mode);
@@ -250,6 +280,7 @@
     xrayPick = index;
     document.querySelectorAll("#xray-pick button").forEach((b) => b.setAttribute("aria-selected", String(Number(b.dataset.index) === index)));
     const paste = index < 0;
+    if (!paste && !window.AQPolicy) { need("xray").then(() => { if (xrayPick === index) renderXray(index); }); return; }
     const res = paste ? pasted : window.AQPolicy.explain(JSON.stringify(Q.xray[index].text));
     $("#xray-edit").hidden = !paste || Boolean(pasted);
     $("#xray-result").hidden = !res;
@@ -284,6 +315,7 @@
     const error = $("#xray-error");
     const fail = (msg) => { error.textContent = msg; error.hidden = false; };
     if (!text.trim()) return fail("Paste a policy first, or choose Load an example.");
+    if (!window.AQPolicy) { need("xray").then(explainPasted); return; }
     const res = window.AQPolicy.explain(text);
     if (res.error) return fail(res.error);
     error.hidden = true;
@@ -384,8 +416,8 @@
         const full = parts.map((p) => p.text).join("");
         const code = h("code", null, parts.map((p) => (p.filled ? h("span.filled", null, p.text) : p.hole ? h("span.hole", null, p.text) : p.text)));
         const actions = h("div.cheat-actions", null,
-          where && PG() ? h("button.copy", { type: "button", title: where === "any" ? "Run it in the playground" : `Run it in the playground scenario "${titles[where]}"`,
-            onclick: () => { if (where !== "any") location.hash = "play/" + where; else location.hash = "path"; PG().prefill(cmd, where); } }, "Try")
+          where && (where === "any" || titles[where]) ? h("button.copy", { type: "button", title: where === "any" ? "Run it in the playground" : `Run it in the playground scenario "${titles[where]}"`,
+            onclick: () => { if (where !== "any") location.hash = "play/" + where; else location.hash = "path"; withPg((p) => p.prefill(cmd, where)); } }, "Try")
             : h("a.copy.lab", { href: "#level-00", title: "Needs a real AWS account: use a sandbox with a budget alert", onclick: (e) => { e.preventDefault(); location.hash = "path"; setTimeout(() => scrollToEl($("#level-00"))); } }, "Lab"),
           copyButton(full));
         return h("li", null, h("div", null, code, h("span.muted", null, what)), actions);
@@ -434,7 +466,7 @@
   ];
   function renderPalette() {
     const words = paletteInput.value.toLowerCase().split(/\s+/).filter(Boolean);
-    const scenarios = (PG() ? PG().scenarios : []).map((sc) => ({ label: `Playground: ${sc.title}`, hint: sc.group, kind: "Practice", run: () => { location.hash = "play/" + sc.id; } }));
+    const scenarios = SCENARIOS.map((sc) => ({ label: `Playground: ${sc.title}`, hint: sc.group, kind: "Practice", run: () => { location.hash = "play/" + sc.id; } }));
     paletteItems = [...ACTIONS, ...scenarios].filter((a) => words.every((w) => `${a.label} ${a.hint || ""} ${a.kind}`.toLowerCase().includes(w))).slice(0, 8);
     paletteActive = Math.min(paletteActive, Math.max(0, paletteItems.length - 1));
     paletteList.replaceChildren(...paletteItems.map((a, i) => h("li", { role: "option", id: "pal-" + i, "aria-selected": String(i === paletteActive),
@@ -444,6 +476,7 @@
   }
   function openPalette() {
     if (palette.open) return;
+    warm();
     paletteInput.value = "";
     paletteActive = 0;
     renderPalette();
@@ -473,7 +506,10 @@
   // --- init -------------------------------------------------------------------------
 
   $("#quiz-level").append(h("option", { value: "exam" }, `Exam: ${EXAM_SIZE} random questions from every level`));
-  for (const lv of Q.levels) $("#quiz-level").append(h("option", { value: lv.id }, `${lv.id} · ${lv.title} (${questionsFor(lv.id).length} questions)`));
+  const quizLabel = (lv) => `${lv.id} · ${lv.title} (${questionsFor(lv.id).length} questions)`;
+  for (const lv of Q.levels) $("#quiz-level").append(h("option", { value: lv.id }, quizLabel(lv)));
+  // The counts and questions arrive with the question bank.
+  ready.quiz = () => { for (const lv of Q.levels) $(`#quiz-level option[value="${lv.id}"]`).textContent = quizLabel(lv); renderQuiz(); };
   $("#quiz-level").value = "00";
   $("#quiz-level").addEventListener("change", renderQuiz);
   $("#quiz-again").addEventListener("click", () => { renderQuiz(); $("#quiz-list").scrollIntoView({ block: "start" }); });
@@ -498,17 +534,19 @@
   renderFill();
   $("#cheat-fill-box").open = matchMedia("(min-width: 721px)").matches || Object.keys(fills).length > 0;
 
-  // Shared with architecture.js, which loads after this script.
-  window.AQUI = { h, rich, practiseRow };
+  // Shared with engage.js and architecture.js, which load after this script.
+  window.AQUI = { h, rich, practiseRow, need };
 
   renderGuides();
-  renderQuiz();
   renderXray(-1);
-  // The playground loads after this script; everything that needs it waits.
+  renderCheats();
+  // The first screen in one pass, once engage.js has run too, then the heavy
+  // features in the background.
   window.addEventListener("DOMContentLoaded", () => {
     renderSignature();
     renderPath();
-    renderCheats();
+    window.DQEngage.render();
     show();
+    (window.requestIdleCallback || ((fn) => setTimeout(fn, 200)))(() => warm());
   });
 })();
