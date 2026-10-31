@@ -457,7 +457,7 @@
   // --- what runs on the instances ------------------------------------------------
 
   // ports: what the app listens on; paths: what an HTTP GET returns.
-  const SHOP_PAGE = "<!doctype html><title>Quest Kitchen</title><h1>Order dinner</h1>";
+  const SHOP_PAGE = "<!doctype html><title>Nimbus Kitchen</title><h1>Order dinner</h1>";
   const APPS = {
     shop: { ports: [8080], paths: { "/": [200, SHOP_PAGE], "/health": [200, "ok"], "/preview": [200, ""] } },
     blog: { ports: [80, 22], paths: { "/": [200, "<!doctype html><title>Kitchen notes</title><h1>Kitchen notes</h1>"] } },
@@ -541,14 +541,14 @@
       this.lambdas = [];
       this.buckets = {};
       this.accountPab = null;
-      this.addBucket("quest-kitchen-assets", { gb: 12 });
+      this.addBucket("nimbus-kitchen-assets", { gb: 12 });
       this.kmsKeys = [];
       this.creds = {};
       this.iam = { users: {}, groups: {}, roles: {}, policies: {}, rootKeys: [], rootMfa: true };
       this.scps = [];
-      this.addRole("PlatformAdmin", { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Federated: `arn:aws:iam::${ACCOUNT}:saml-provider/QuestKitchenSSO` }, Action: "sts:AssumeRoleWithSAML" }] }, [awsPolicyArn("AdministratorAccess")]);
+      this.addRole("PlatformAdmin", { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Federated: `arn:aws:iam::${ACCOUNT}:saml-provider/NimbusKitchenSSO` }, Action: "sts:AssumeRoleWithSAML" }] }, [awsPolicyArn("AdministratorAccess")]);
       this.addRole("web-role", trustService("ec2.amazonaws.com"), [awsPolicyArn("AmazonSSMManagedInstanceCore")],
-        { "assets-read": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::quest-kitchen-assets", "arn:aws:s3:::quest-kitchen-assets/*"] }) });
+        { "assets-read": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::nimbus-kitchen-assets", "arn:aws:s3:::nimbus-kitchen-assets/*"] }) });
       this.addUser("breakglass", [awsPolicyArn("AdministratorAccess")]).mfa = true;
       this.profiles = { default: { sso: true, role: "PlatformAdmin", session: "you" } };
       this.sso = { valid: true };
@@ -561,7 +561,7 @@
       this.metrics = {};
       this.logGroups = [];
       this.topics = [{ arn: `arn:aws:sns:${REGION}:${ACCOUNT}:oncall-pager`, subs: [{ proto: "email", endpoint: "oncall@example.com", confirmed: true }] }];
-      this.trail = { name: "main-trail", logging: true, bucket: "quest-kitchen-cloudtrail", multiRegion: true };
+      this.trail = { name: "main-trail", logging: true, bucket: "nimbus-kitchen-cloudtrail", multiRegion: true };
       this.events = [];
       this.findings = [];
       this.quotas = { "L-1216C47A": 64 };
@@ -1284,7 +1284,7 @@
       row("region", c.region, c.o.region ? "--region" : c.a.env.AWS_REGION ? "env" : "config-file", c.o.region || c.a.env.AWS_REGION ? "" : "~/.aws/config");
     } },
     "list-profiles": { noAuth: true, run: (c, say) => Object.keys(c.a.profiles).forEach((n) => say(n)) },
-    get: { noAuth: true, run(c, say) { const k = c.pos[0]; if (k === "region") say(REGION); else if (k === "sso_start_url") say("https://quest-kitchen.awsapps.com/start"); } },
+    get: { noAuth: true, run(c, say) { const k = c.pos[0]; if (k === "region") say(REGION); else if (k === "sso_start_url") say("https://nimbus-kitchen.awsapps.com/start"); } },
     set: { noAuth: true, run(c) {
       const [k, v] = c.pos;
       const name = (c.o.profile && c.o.profile[0]) || "default";
@@ -1301,8 +1301,8 @@
       say("Attempting to open your default browser.");
       say("If the browser does not open, open the following URL:");
       say("");
-      say("https://oidc.us-east-1.amazonaws.com/authorize?response_type=code&client_id=quest-kitchen-cli&redirect_uri=http%3A%2F%2F127.0.0.1%3A53311%2Foauth%2Fcallback");
-      say("Successfully logged into Start URL: https://quest-kitchen.awsapps.com/start");
+      say("https://oidc.us-east-1.amazonaws.com/authorize?response_type=code&client_id=nimbus-kitchen-cli&redirect_uri=http%3A%2F%2F127.0.0.1%3A53311%2Foauth%2Fcallback");
+      say("Successfully logged into Start URL: https://nimbus-kitchen.awsapps.com/start");
     } },
     logout: { noAuth: true, run(c) { c.a.sso.valid = false; } }
   };
@@ -2089,7 +2089,7 @@
   // --- S3 ---
 
   // Bucket names are global: these belong to other AWS customers.
-  const TAKEN = new Set(["assets", "backups", "logs", "data", "test", "images", "static", "uploads", "my-bucket", "website", "media", "files", "prod", "dev", "quest-kitchen"]);
+  const TAKEN = new Set(["assets", "backups", "logs", "data", "test", "images", "static", "uploads", "my-bucket", "website", "media", "files", "prod", "dev", "nimbus-kitchen"]);
   const validBucket = (n) => /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(n) && !/\.\.|^\d+\.\d+\.\d+\.\d+$/.test(n);
   const canonical = (acct) => hexOf("canonical" + acct, 64);
   const etag = (o) => `"${hexOf("etag" + o.v, 32)}"`;
@@ -2877,10 +2877,10 @@
     if (!d) throw new AwsError("NoSuchDistribution", "The specified distribution does not exist.");
     return d;
   };
-  const distConfig = (a, d) => ({ CallerReference: `quest-${d.id}`, Aliases: { Quantity: d.aliases.length, Items: [...d.aliases] }, DefaultRootObject: "index.html",
+  const distConfig = (a, d) => ({ CallerReference: `nimbus-${d.id}`, Aliases: { Quantity: d.aliases.length, Items: [...d.aliases] }, DefaultRootObject: "index.html",
     Origins: { Quantity: 1, Items: [{ Id: d.bucket, DomainName: d.origin, OriginPath: "", S3OriginConfig: { OriginAccessIdentity: "" }, OriginAccessControlId: `E${hexOf("oac" + d.id, 13).toUpperCase()}` }] },
     DefaultCacheBehavior: { TargetOriginId: d.bucket, ViewerProtocolPolicy: "redirect-to-https", CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6", Compress: true },
-    Comment: "Quest Kitchen website", Enabled: true, PriceClass: "PriceClass_100", HttpVersion: "http2and3", IsIPV6Enabled: true,
+    Comment: "Nimbus Kitchen website", Enabled: true, PriceClass: "PriceClass_100", HttpVersion: "http2and3", IsIPV6Enabled: true,
     ViewerCertificate: d.cert ? { ACMCertificateArn: d.cert, SSLSupportMethod: "sni-only", MinimumProtocolVersion: d.minTls, Certificate: d.cert, CertificateSource: "acm" }
       : { CloudFrontDefaultCertificate: true, SSLSupportMethod: "vip", MinimumProtocolVersion: "TLSv1", CertificateSource: "cloudfront" } });
   const distJson = (a, d) => ({ Id: d.id, ARN: `arn:aws:cloudfront::${ACCOUNT}:distribution/${d.id}`, Status: d.status, LastModifiedTime: ts3(a.now - HOUR), DomainName: d.domain,
@@ -3511,7 +3511,7 @@
         return [Object.entries(vars).map(([k, v]) => [`${k}=${v}`]), 0];
       }
       case "echo": return [[[args.filter((x) => x !== "-n").join(" ")]], 0];
-      case "pwd": return [[[a.session ? "/usr/bin" : "/Users/you/quest-kitchen"]], 0];
+      case "pwd": return [[[a.session ? "/usr/bin" : "/Users/you/nimbus-kitchen"]], 0];
       case "whoami": return [[[a.session ? a.sessionUser || "ssm-user" : "you"]], 0];
       case "hostname": return [[[a.session ? `${PROMPT_HOST(a.session)}.ec2.internal` : "laptop.local"]], 0];
       case "ls": {
@@ -3648,7 +3648,7 @@
   // cheat sheet command runs as written.
   function fillBlanks(a, cmd) {
     const b = a.scenario.blanks || {};
-    const bucket = b.bucket || Object.keys(a.buckets).find((n) => n !== "quest-kitchen-assets") || "quest-kitchen-assets";
+    const bucket = b.bucket || Object.keys(a.buckets).find((n) => n !== "nimbus-kitchen-assets") || "nimbus-kitchen-assets";
     const inst = a.inst(b.instance || "") || a.instances[0];
     const tg = a.tg(b.tg || "") || a.tgs[0];
     const fn = a.lambdas[0];
@@ -3723,28 +3723,28 @@
     // IAM and access
     {
       id: "s3list", title: "AccessDenied on ListBucket", level: "01",
-      story: "Priya in finance runs aws s3 ls s3://quest-kitchen-reports --profile analyst and gets AccessDenied. She can download a report if she knows its name, but cannot list the folder.",
-      goal: "Let the analyst profile list quest-kitchen-reports, and nothing more.",
+      story: "Priya in finance runs aws s3 ls s3://nimbus-kitchen-reports --profile analyst and gets AccessDenied. She can download a report if she knows its name, but cannot list the folder.",
+      goal: "Let the analyst profile list nimbus-kitchen-reports, and nothing more.",
       done: "The analyst can list the reports bucket, and only that bucket.",
       setup(a) {
-        a.addBucket("quest-kitchen-reports", { objects: { "monthly/2026-09.csv": { size: 48211 }, "monthly/2026-10.csv": { size: 50177 } } });
-        a.addBucket("quest-kitchen-payroll", { objects: { "2026/10/payroll.csv": { size: 9120 } } });
-        const d = doc({ Sid: "ReadReports", Effect: "Allow", Action: "s3:GetObject", Resource: "arn:aws:s3:::quest-kitchen-reports/*" });
+        a.addBucket("nimbus-kitchen-reports", { objects: { "monthly/2026-09.csv": { size: 48211 }, "monthly/2026-10.csv": { size: 50177 } } });
+        a.addBucket("nimbus-kitchen-payroll", { objects: { "2026/10/payroll.csv": { size: 9120 } } });
+        const d = doc({ Sid: "ReadReports", Effect: "Allow", Action: "s3:GetObject", Resource: "arn:aws:s3:::nimbus-kitchen-reports/*" });
         a.addUser("analyst", [], { "reports-read": d });
         profileKey(a, "analyst", "analyst");
         a.files["reports-read.json"] = pretty(d);
       },
-      won: (a) => s3can(a, a.user("analyst"), "s3:ListBucket", "quest-kitchen-reports") && !s3can(a, a.user("analyst"), "s3:ListBucket", "quest-kitchen-payroll") &&
-        !s3can(a, a.user("analyst"), "s3:GetObject", "quest-kitchen-payroll", "2026/10/payroll.csv") && !s3can(a, a.user("analyst"), "s3:PutObject", "quest-kitchen-reports", "x"),
-      check: (a) => ({ label: "analyst: list reports, not payroll", text: `${s3can(a, a.user("analyst"), "s3:ListBucket", "quest-kitchen-reports") ? "can list reports" : "cannot list reports"}${s3can(a, a.user("analyst"), "s3:GetObject", "quest-kitchen-payroll", "2026/10/payroll.csv") ? ", can read payroll" : ""}` }),
+      won: (a) => s3can(a, a.user("analyst"), "s3:ListBucket", "nimbus-kitchen-reports") && !s3can(a, a.user("analyst"), "s3:ListBucket", "nimbus-kitchen-payroll") &&
+        !s3can(a, a.user("analyst"), "s3:GetObject", "nimbus-kitchen-payroll", "2026/10/payroll.csv") && !s3can(a, a.user("analyst"), "s3:PutObject", "nimbus-kitchen-reports", "x"),
+      check: (a) => ({ label: "analyst: list reports, not payroll", text: `${s3can(a, a.user("analyst"), "s3:ListBucket", "nimbus-kitchen-reports") ? "can list reports" : "cannot list reports"}${s3can(a, a.user("analyst"), "s3:GetObject", "nimbus-kitchen-payroll", "2026/10/payroll.csv") ? ", can read payroll" : ""}` }),
       hints: [
-        "Run it yourself: aws s3 ls s3://quest-kitchen-reports --profile analyst. Read the whole message: which action, on which resource, and why.",
+        "Run it yourself: aws s3 ls s3://nimbus-kitchen-reports --profile analyst. Read the whole message: which action, on which resource, and why.",
         "aws iam get-user-policy --user-name analyst --policy-name reports-read. Listing is s3:ListBucket on the bucket ARN; s3:GetObject is on the objects, bucket/*.",
-        "Add a statement to reports-read.json allowing s3:ListBucket on arn:aws:s3:::quest-kitchen-reports, then: aws iam put-user-policy --user-name analyst --policy-name reports-read --policy-document file://reports-read.json"
+        "Add a statement to reports-read.json allowing s3:ListBucket on arn:aws:s3:::nimbus-kitchen-reports, then: aws iam put-user-policy --user-name analyst --policy-name reports-read --policy-document file://reports-read.json"
       ],
       lesson: "s3:ListBucket acts on the bucket and s3:GetObject on the objects in it: two ARNs. Grant each on its own resource; AmazonS3ReadOnlyAccess would also have opened the payroll bucket.",
-      tries: ["aws s3 ls s3://quest-kitchen-reports --profile analyst", "aws iam get-user-policy --user-name analyst --policy-name reports-read"],
-      edit: ["reports-read.json"], blanks: { bucket: "quest-kitchen-reports", user: "analyst", profile: "analyst" }
+      tries: ["aws s3 ls s3://nimbus-kitchen-reports --profile analyst", "aws iam get-user-policy --user-name analyst --policy-name reports-read"],
+      edit: ["reports-read.json"], blanks: { bucket: "nimbus-kitchen-reports", user: "analyst", profile: "analyst" }
     },
     {
       id: "explicitdeny", title: "Explicit deny wins", level: "03",
@@ -3801,27 +3801,27 @@
     },
     {
       id: "oidc", title: "GitHub Actions cannot assume its role", level: "18",
-      story: "The repository moved from SandeepKomal/kitchen-old to SandeepKomal/quest-kitchen. Since then the deploy workflow fails at configure-aws-credentials with: Not authorized to perform sts:AssumeRoleWithWebIdentity.",
-      goal: "Let the main branch of SandeepKomal/quest-kitchen assume gh-deploy, and no other repository.",
-      done: "Only quest-kitchen's main branch can assume gh-deploy.",
+      story: "The repository moved from SandeepKomal/kitchen-old to SandeepKomal/nimbus-kitchen. Since then the deploy workflow fails at configure-aws-credentials with: Not authorized to perform sts:AssumeRoleWithWebIdentity.",
+      goal: "Let the main branch of SandeepKomal/nimbus-kitchen assume gh-deploy, and no other repository.",
+      done: "Only nimbus-kitchen's main branch can assume gh-deploy.",
       setup(a) {
         const fed = `arn:aws:iam::${ACCOUNT}:oidc-provider/token.actions.githubusercontent.com`;
         const trust = doc({ Effect: "Allow", Principal: { Federated: fed }, Action: "sts:AssumeRoleWithWebIdentity",
           Condition: { StringEquals: { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" }, StringLike: { "token.actions.githubusercontent.com:sub": "repo:SandeepKomal/kitchen-old:ref:refs/heads/main" } } });
         a.addRole("gh-deploy", trust, [awsPolicyArn("PowerUserAccess")]);
         a.files["trust.json"] = pretty(trust);
-        a.files["token-claims.json"] = pretty({ iss: "https://token.actions.githubusercontent.com", aud: "sts.amazonaws.com", sub: "repo:SandeepKomal/quest-kitchen:ref:refs/heads/main", repository: "SandeepKomal/quest-kitchen", ref: "refs/heads/main", workflow: "deploy" });
-        a.webToken = { sub: "repo:SandeepKomal/quest-kitchen:ref:refs/heads/main", aud: "sts.amazonaws.com" };
+        a.files["token-claims.json"] = pretty({ iss: "https://token.actions.githubusercontent.com", aud: "sts.amazonaws.com", sub: "repo:SandeepKomal/nimbus-kitchen:ref:refs/heads/main", repository: "SandeepKomal/nimbus-kitchen", ref: "refs/heads/main", workflow: "deploy" });
+        a.webToken = { sub: "repo:SandeepKomal/nimbus-kitchen:ref:refs/heads/main", aud: "sts.amazonaws.com" };
       },
       won(a) {
         const can = (sub) => webIdentityOk(a, "gh-deploy", { sub, aud: "sts.amazonaws.com" });
-        return can("repo:SandeepKomal/quest-kitchen:ref:refs/heads/main") && !can("repo:someone-else/fork:ref:refs/heads/main") && !can("repo:SandeepKomal/quest-kitchen:pull_request");
+        return can("repo:SandeepKomal/nimbus-kitchen:ref:refs/heads/main") && !can("repo:someone-else/fork:ref:refs/heads/main") && !can("repo:SandeepKomal/nimbus-kitchen:pull_request");
       },
-      check: (a) => ({ label: "quest-kitchen main / any other repo", text: `${webIdentityOk(a, "gh-deploy", { sub: "repo:SandeepKomal/quest-kitchen:ref:refs/heads/main", aud: "sts.amazonaws.com" }) ? "allowed" : "denied"} / ${webIdentityOk(a, "gh-deploy", { sub: "repo:someone-else/fork:ref:refs/heads/main", aud: "sts.amazonaws.com" }) ? "allowed" : "denied"}` }),
+      check: (a) => ({ label: "nimbus-kitchen main / any other repo", text: `${webIdentityOk(a, "gh-deploy", { sub: "repo:SandeepKomal/nimbus-kitchen:ref:refs/heads/main", aud: "sts.amazonaws.com" }) ? "allowed" : "denied"} / ${webIdentityOk(a, "gh-deploy", { sub: "repo:someone-else/fork:ref:refs/heads/main", aud: "sts.amazonaws.com" }) ? "allowed" : "denied"}` }),
       hints: [
         "The workflow's token claims are in token-claims.json (cat token-claims.json). Try: aws sts assume-role-with-web-identity --role-arn arn:aws:iam::111122223333:role/gh-deploy --role-session-name gh --web-identity-token file://token-claims.json",
         "aws iam get-role --role-name gh-deploy --query Role.AssumeRolePolicyDocument. Compare the sub condition with the token's sub.",
-        "In trust.json set the sub to repo:SandeepKomal/quest-kitchen:ref:refs/heads/main, then: aws iam update-assume-role-policy --role-name gh-deploy --policy-document file://trust.json"
+        "In trust.json set the sub to repo:SandeepKomal/nimbus-kitchen:ref:refs/heads/main, then: aws iam update-assume-role-policy --role-name gh-deploy --policy-document file://trust.json"
       ],
       lesson: "With GitHub OIDC there are no stored keys: the trust policy's sub condition decides which repository and branch get the role. Never widen it to repo:* or *; that hands your account to every repository on GitHub.",
       tries: ["cat token-claims.json", "aws iam get-role --role-name gh-deploy --query Role.AssumeRolePolicyDocument"],
@@ -3876,7 +3876,7 @@
     },
     {
       id: "scp", title: "Denied by a service control policy", level: "03",
-      story: "Legal wants the EU order archive stored in Europe. You are an administrator, yet aws s3 mb s3://quest-kitchen-archive-eu --region eu-central-1 fails with AccessDenied.",
+      story: "Legal wants the EU order archive stored in Europe. You are an administrator, yet aws s3 mb s3://nimbus-kitchen-archive-eu --region eu-central-1 fails with AccessDenied.",
       goal: "Create the archive bucket in an EU Region your organization allows.",
       done: "The archive bucket exists in an allowed EU Region.",
       setup(a) {
@@ -3884,15 +3884,15 @@
           NotAction: ["iam:*", "organizations:*", "route53:*", "sts:*", "support:*", "cloudfront:*", "s3:ListAllMyBuckets"], Resource: "*", Condition: { StringNotEquals: { "aws:RequestedRegion": ["us-east-1", "eu-west-1"] } } }))];
         a.files["scp-note.txt"] = "Organization guard rail, from the platform team:\nworkloads may run only in us-east-1 and eu-west-1.\nFor anything else, open a ticket with the cloud platform team.\n";
       },
-      won: (a) => Object.values(a.buckets).some((b) => b.name.startsWith("quest-kitchen-archive") && b.region === "eu-west-1"),
-      check: (a) => ({ label: "EU archive bucket", text: (Object.values(a.buckets).find((b) => b.name.startsWith("quest-kitchen-archive")) || { region: "not created" }).region }),
+      won: (a) => Object.values(a.buckets).some((b) => b.name.startsWith("nimbus-kitchen-archive") && b.region === "eu-west-1"),
+      check: (a) => ({ label: "EU archive bucket", text: (Object.values(a.buckets).find((b) => b.name.startsWith("nimbus-kitchen-archive")) || { region: "not created" }).region }),
       hints: [
         "Read the end of the error: with an explicit deny in a service control policy. SCPs are set by your organization's management account, above every policy in this account.",
         "You cannot read or change it from here (try aws organizations list-policies --filter SERVICE_CONTROL_POLICY). Which Regions are allowed? cat scp-note.txt",
-        "aws s3 mb s3://quest-kitchen-archive-eu --region eu-west-1"
+        "aws s3 mb s3://nimbus-kitchen-archive-eu --region eu-west-1"
       ],
       lesson: "A service control policy caps what any principal in the account can do, administrators and the root user included. No IAM change in the account overrides it; work inside it or ask the organization's owners.",
-      tries: ["aws s3 mb s3://quest-kitchen-archive-eu --region eu-central-1", "cat scp-note.txt"]
+      tries: ["aws s3 mb s3://nimbus-kitchen-archive-eu --region eu-central-1", "cat scp-note.txt"]
     },
 
     // Networking
@@ -4141,91 +4141,91 @@
     // Storage
     {
       id: "publicbucket", title: "Bucket open to the internet", level: "09",
-      story: "A customer opened someone else's invoice by guessing its URL: https://quest-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf. The invoice app must keep working.",
-      goal: "Stop anonymous access to quest-kitchen-invoices; the invoice-app role must still read invoices.",
+      story: "A customer opened someone else's invoice by guessing its URL: https://nimbus-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf. The invoice app must keep working.",
+      goal: "Stop anonymous access to nimbus-kitchen-invoices; the invoice-app role must still read invoices.",
       done: "The bucket is private and the invoice app still reads it.",
       setup(a) {
-        a.addBucket("quest-kitchen-invoices", { pab: null, policy: doc({ Sid: "PublicRead", Effect: "Allow", Principal: "*", Action: "s3:GetObject", Resource: "arn:aws:s3:::quest-kitchen-invoices/*" }),
+        a.addBucket("nimbus-kitchen-invoices", { pab: null, policy: doc({ Sid: "PublicRead", Effect: "Allow", Principal: "*", Action: "s3:GetObject", Resource: "arn:aws:s3:::nimbus-kitchen-invoices/*" }),
           objects: { "2026/10/inv-1041.pdf": { size: 84211, body: "%PDF-1.7 invoice 1041" }, "2026/10/inv-1042.pdf": { size: 79310, body: "%PDF-1.7 invoice 1042" } } });
-        a.addRole("invoice-app", trustService("ec2.amazonaws.com"), [], { "read-invoices": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::quest-kitchen-invoices", "arn:aws:s3:::quest-kitchen-invoices/*"] }) });
+        a.addRole("invoice-app", trustService("ec2.amazonaws.com"), [], { "read-invoices": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::nimbus-kitchen-invoices", "arn:aws:s3:::nimbus-kitchen-invoices/*"] }) });
       },
-      won: (a) => s3Http(a, "quest-kitchen-invoices", "/2026/10/inv-1042.pdf").code === 403 && s3can(a, a.role("invoice-app"), "s3:GetObject", "quest-kitchen-invoices", "2026/10/inv-1042.pdf"),
-      check: (a) => ({ label: "anonymous GET inv-1042.pdf", text: s3Http(a, "quest-kitchen-invoices", "/2026/10/inv-1042.pdf").code === 200 ? "200, public" : `403${s3can(a, a.role("invoice-app"), "s3:GetObject", "quest-kitchen-invoices", "2026/10/inv-1042.pdf") ? "" : ", and the app is locked out"}` }),
+      won: (a) => s3Http(a, "nimbus-kitchen-invoices", "/2026/10/inv-1042.pdf").code === 403 && s3can(a, a.role("invoice-app"), "s3:GetObject", "nimbus-kitchen-invoices", "2026/10/inv-1042.pdf"),
+      check: (a) => ({ label: "anonymous GET inv-1042.pdf", text: s3Http(a, "nimbus-kitchen-invoices", "/2026/10/inv-1042.pdf").code === 200 ? "200, public" : `403${s3can(a, a.role("invoice-app"), "s3:GetObject", "nimbus-kitchen-invoices", "2026/10/inv-1042.pdf") ? "" : ", and the app is locked out"}` }),
       hints: [
-        "curl https://quest-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf, then aws s3api get-bucket-policy-status --bucket quest-kitchen-invoices",
-        "aws s3api get-bucket-policy --bucket quest-kitchen-invoices: Principal \"*\" means anyone. aws s3api get-public-access-block --bucket quest-kitchen-invoices: there is no block.",
-        "aws s3api put-public-access-block --bucket quest-kitchen-invoices --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true, then aws s3api delete-bucket-policy --bucket quest-kitchen-invoices"
+        "curl https://nimbus-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf, then aws s3api get-bucket-policy-status --bucket nimbus-kitchen-invoices",
+        "aws s3api get-bucket-policy --bucket nimbus-kitchen-invoices: Principal \"*\" means anyone. aws s3api get-public-access-block --bucket nimbus-kitchen-invoices: there is no block.",
+        "aws s3api put-public-access-block --bucket nimbus-kitchen-invoices --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true, then aws s3api delete-bucket-policy --bucket nimbus-kitchen-invoices"
       ],
       lesson: "Block Public Access overrides public policies and ACLs, so turn it on for every bucket (and the account) unless a bucket is meant to be a public website. The app keeps working because its access comes from its IAM role, not from the public statement.",
-      tries: ["curl https://quest-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf", "aws s3api get-bucket-policy-status --bucket quest-kitchen-invoices"],
-      blanks: { bucket: "quest-kitchen-invoices" }
+      tries: ["curl https://nimbus-kitchen-invoices.s3.amazonaws.com/2026/10/inv-1042.pdf", "aws s3api get-bucket-policy-status --bucket nimbus-kitchen-invoices"],
+      blanks: { bucket: "nimbus-kitchen-invoices" }
     },
     {
       id: "ownership", title: "403 on objects another account uploaded", level: "09",
-      story: "A partner uploads order files into quest-kitchen-imports every night. The import job, which runs as the import-job role, gets 403 on every new file, though its policy allows s3:GetObject.",
+      story: "A partner uploads order files into nimbus-kitchen-imports every night. The import job, which runs as the import-job role, gets 403 on every new file, though its policy allows s3:GetObject.",
       goal: "Let import-job read the partner's files, without making the bucket public.",
       done: "import-job reads the partner's files.",
       setup(a) {
-        a.addBucket("quest-kitchen-imports", { ownership: "ObjectWriter", policy: doc({ Sid: "PartnerUploads", Effect: "Allow", Principal: { AWS: `arn:aws:iam::${PARTNER}:root` }, Action: "s3:PutObject", Resource: "arn:aws:s3:::quest-kitchen-imports/orders/*" }),
+        a.addBucket("nimbus-kitchen-imports", { ownership: "ObjectWriter", policy: doc({ Sid: "PartnerUploads", Effect: "Allow", Principal: { AWS: `arn:aws:iam::${PARTNER}:root` }, Action: "s3:PutObject", Resource: "arn:aws:s3:::nimbus-kitchen-imports/orders/*" }),
           objects: { "orders/2026-10-29.csv": { owner: PARTNER, size: 18220, body: "order_id,total\n1001,42.50\n" }, "orders/2026-10-30.csv": { owner: PARTNER, size: 19004, body: "order_id,total\n1002,18.00\n" } } });
-        a.addRole("import-job", trustService("ec2.amazonaws.com"), [], { "read-imports": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::quest-kitchen-imports", "arn:aws:s3:::quest-kitchen-imports/*"] }) });
+        a.addRole("import-job", trustService("ec2.amazonaws.com"), [], { "read-imports": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::nimbus-kitchen-imports", "arn:aws:s3:::nimbus-kitchen-imports/*"] }) });
         a.profiles.import = { sso: true, role: "import-job", session: "you" };
       },
-      won: (a) => s3can(a, a.role("import-job"), "s3:GetObject", "quest-kitchen-imports", "orders/2026-10-30.csv") && !a.isPublic(a.buckets["quest-kitchen-imports"]),
-      check: (a) => ({ label: "import-job reads orders/2026-10-30.csv", text: s3can(a, a.role("import-job"), "s3:GetObject", "quest-kitchen-imports", "orders/2026-10-30.csv") ? "allowed" : "403 Forbidden" }),
+      won: (a) => s3can(a, a.role("import-job"), "s3:GetObject", "nimbus-kitchen-imports", "orders/2026-10-30.csv") && !a.isPublic(a.buckets["nimbus-kitchen-imports"]),
+      check: (a) => ({ label: "import-job reads orders/2026-10-30.csv", text: s3can(a, a.role("import-job"), "s3:GetObject", "nimbus-kitchen-imports", "orders/2026-10-30.csv") ? "allowed" : "403 Forbidden" }),
       hints: [
-        "aws s3 cp s3://quest-kitchen-imports/orders/2026-10-30.csv . --profile import",
-        "aws s3api list-object-versions --bucket quest-kitchen-imports --prefix orders/ --query 'Versions[].[Key,Owner.ID]' --output text, and compare with your own ID: aws s3api list-buckets --query Owner.ID. Then aws s3api get-bucket-ownership-controls --bucket quest-kitchen-imports",
-        "aws s3api put-bucket-ownership-controls --bucket quest-kitchen-imports --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'"
+        "aws s3 cp s3://nimbus-kitchen-imports/orders/2026-10-30.csv . --profile import",
+        "aws s3api list-object-versions --bucket nimbus-kitchen-imports --prefix orders/ --query 'Versions[].[Key,Owner.ID]' --output text, and compare with your own ID: aws s3api list-buckets --query Owner.ID. Then aws s3api get-bucket-ownership-controls --bucket nimbus-kitchen-imports",
+        "aws s3api put-bucket-ownership-controls --bucket nimbus-kitchen-imports --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'"
       ],
       lesson: "With ObjectWriter ownership an object belongs to the account that uploaded it, and your IAM policies cannot grant access to someone else's object. BucketOwnerEnforced turns ACLs off and makes you own every object; it is the default for new buckets.",
-      tries: ["aws s3 cp s3://quest-kitchen-imports/orders/2026-10-30.csv . --profile import", "aws s3api get-bucket-ownership-controls --bucket quest-kitchen-imports"],
-      blanks: { bucket: "quest-kitchen-imports", role: "import-job", profile: "import" }
+      tries: ["aws s3 cp s3://nimbus-kitchen-imports/orders/2026-10-30.csv . --profile import", "aws s3api get-bucket-ownership-controls --bucket nimbus-kitchen-imports"],
+      blanks: { bucket: "nimbus-kitchen-imports", role: "import-job", profile: "import" }
     },
     {
       id: "undelete", title: "Recover a deleted object", level: "09",
-      story: "A cleanup script deleted prod/app.json from quest-kitchen-config last night. The web servers read it at start-up, so the next deploy will fail.",
+      story: "A cleanup script deleted prod/app.json from nimbus-kitchen-config last night. The web servers read it at start-up, so the next deploy will fail.",
       goal: "Bring back the latest version of prod/app.json.",
       done: "prod/app.json is back, at its latest version.",
       setup(a) {
-        const b = a.addBucket("quest-kitchen-config", { versioning: "Enabled" });
+        const b = a.addBucket("nimbus-kitchen-config", { versioning: "Enabled" });
         b.objects["prod/app.json"] = [{ v: hexOf("marker", 32), marker: true, modified: START - 9 * HOUR, owner: ACCOUNT },
           { v: hexOf("v2", 32), size: 61, modified: START - 3 * DAY, owner: ACCOUNT, body: '{"featureFlags":{"newCheckout":true},"db":"orders-db"}' },
           { v: hexOf("v1", 32), size: 42, modified: START - 40 * DAY, owner: ACCOUNT, body: '{"featureFlags":{},"db":"orders-db-old"}' }];
         b.objects["prod/nginx.conf"] = [{ v: hexOf("ngx", 32), size: 912, modified: START - 20 * DAY, owner: ACCOUNT, body: "server { listen 8080; }" }];
       },
-      won: (a) => { const o = latest(a.buckets["quest-kitchen-config"], "prod/app.json"); return Boolean(o && !o.marker && o.body.includes("newCheckout")); },
-      check: (a) => { const o = latest(a.buckets["quest-kitchen-config"], "prod/app.json"); return { label: "s3://quest-kitchen-config/prod/app.json", text: !o || o.marker ? "deleted" : o.body.includes("newCheckout") ? "latest version" : "an older version" }; },
+      won: (a) => { const o = latest(a.buckets["nimbus-kitchen-config"], "prod/app.json"); return Boolean(o && !o.marker && o.body.includes("newCheckout")); },
+      check: (a) => { const o = latest(a.buckets["nimbus-kitchen-config"], "prod/app.json"); return { label: "s3://nimbus-kitchen-config/prod/app.json", text: !o || o.marker ? "deleted" : o.body.includes("newCheckout") ? "latest version" : "an older version" }; },
       hints: [
-        "aws s3 ls s3://quest-kitchen-config/prod/ shows no app.json. aws s3api get-bucket-versioning --bucket quest-kitchen-config",
-        "aws s3api list-object-versions --bucket quest-kitchen-config --prefix prod/app.json: the newest entry is a delete marker.",
-        "Delete the delete marker: aws s3api delete-object --bucket quest-kitchen-config --key prod/app.json --version-id <the marker's VersionId>"
+        "aws s3 ls s3://nimbus-kitchen-config/prod/ shows no app.json. aws s3api get-bucket-versioning --bucket nimbus-kitchen-config",
+        "aws s3api list-object-versions --bucket nimbus-kitchen-config --prefix prod/app.json: the newest entry is a delete marker.",
+        "Delete the delete marker: aws s3api delete-object --bucket nimbus-kitchen-config --key prod/app.json --version-id <the marker's VersionId>"
       ],
       lesson: "In a versioned bucket a delete only adds a delete marker; the data is still there. Removing the marker, or copying the previous version on top, restores the object. Without versioning it would be gone.",
-      tries: ["aws s3 ls s3://quest-kitchen-config/prod/", "aws s3api list-object-versions --bucket quest-kitchen-config --prefix prod/app.json"],
-      blanks: { bucket: "quest-kitchen-config" }
+      tries: ["aws s3 ls s3://nimbus-kitchen-config/prod/", "aws s3api list-object-versions --bucket nimbus-kitchen-config --prefix prod/app.json"],
+      blanks: { bucket: "nimbus-kitchen-config" }
     },
     {
       id: "nosuchbucket", title: "NoSuchBucket from a Lambda function", level: "09",
       story: "Since yesterday's release, image thumbnails are missing. The thumbnailer function fails on every upload.",
       goal: "Make thumbnailer write to the uploads bucket again.",
-      done: "thumbnailer writes to quest-kitchen-uploads.",
+      done: "thumbnailer writes to nimbus-kitchen-uploads.",
       setup(a) {
-        a.addBucket("quest-kitchen-uploads", { gb: 140 });
-        a.addRole("thumb-role", trustService("lambda.amazonaws.com"), [], { "write-thumbs": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:PutObject"], Resource: "arn:aws:s3:::quest-kitchen-uploads/*" }) });
-        a.addLambda({ name: "thumbnailer", role: "thumb-role", env: { BUCKET: "quest-kitchen-uplaods", SIZE: "320" }, needs: { bucket: "BUCKET" } });
+        a.addBucket("nimbus-kitchen-uploads", { gb: 140 });
+        a.addRole("thumb-role", trustService("lambda.amazonaws.com"), [], { "write-thumbs": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:PutObject"], Resource: "arn:aws:s3:::nimbus-kitchen-uploads/*" }) });
+        a.addLambda({ name: "thumbnailer", role: "thumb-role", env: { BUCKET: "nimbus-kitchen-uplaods", SIZE: "320" }, needs: { bucket: "BUCKET" } });
         invoke(a, a.lambdas[a.lambdas.length - 1]);
       },
-      won: (a) => a.fn("thumbnailer").env.BUCKET === "quest-kitchen-uploads",
+      won: (a) => a.fn("thumbnailer").env.BUCKET === "nimbus-kitchen-uploads",
       check: (a) => ({ label: "thumbnailer BUCKET", text: a.fn("thumbnailer").env.BUCKET || "unset" }),
       hints: [
         "aws lambda invoke --function-name thumbnailer out.json, then cat out.json",
         "aws lambda get-function-configuration --function-name thumbnailer --query Environment. Compare the name with aws s3 ls.",
-        "aws lambda update-function-configuration --function-name thumbnailer --environment 'Variables={BUCKET=quest-kitchen-uploads,SIZE=320}'"
+        "aws lambda update-function-configuration --function-name thumbnailer --environment 'Variables={BUCKET=nimbus-kitchen-uploads,SIZE=320}'"
       ],
       lesson: "NoSuchBucket means no bucket has that name, not that you lack access. Check the exact name your code uses; creating a bucket with the misspelled name would silence the error and send the data to the wrong place.",
       tries: ["aws lambda invoke --function-name thumbnailer out.json", "aws lambda get-function-configuration --function-name thumbnailer --query Environment"],
-      blanks: { bucket: "quest-kitchen-uploads" }
+      blanks: { bucket: "nimbus-kitchen-uploads" }
     },
     {
       id: "bucketexists", title: "BucketAlreadyExists", level: "09",
@@ -4237,8 +4237,8 @@
       check: (a) => ({ label: "new bucket in eu-west-1", text: (Object.values(a.buckets).find((b) => b.region === "eu-west-1" && b.created >= START) || { name: "none yet" }).name }),
       hints: [
         "Bucket names are global, across every AWS account in the partition. Someone else already owns menu-photos.",
-        "Make the name yours: add the company and the account, like quest-kitchen-menu-photos-111122223333.",
-        "aws s3 mb s3://quest-kitchen-menu-photos-111122223333 --region eu-west-1 (with s3api create-bucket outside us-east-1, also pass --create-bucket-configuration LocationConstraint=eu-west-1)."
+        "Make the name yours: add the company and the account, like nimbus-kitchen-menu-photos-111122223333.",
+        "aws s3 mb s3://nimbus-kitchen-menu-photos-111122223333 --region eu-west-1 (with s3api create-bucket outside us-east-1, also pass --create-bucket-configuration LocationConstraint=eu-west-1)."
       ],
       lesson: "S3 bucket names share one global namespace, so short generic names are long gone. Use a naming pattern with your organization, purpose and account or Region, and create buckets with infrastructure as code so the name is decided once.",
       tries: ["aws s3 mb s3://menu-photos --region eu-west-1", "aws s3 ls"]
@@ -4612,27 +4612,27 @@
     },
     {
       id: "s3versions", title: "Old versions piling up in S3", level: "17",
-      story: "quest-kitchen-backups grows by about 900 GB a month although the backups stay the same size: the nightly job overwrites them, and versioning keeps every old copy. Someone left a lifecycle.json in the repository.",
+      story: "nimbus-kitchen-backups grows by about 900 GB a month although the backups stay the same size: the nightly job overwrites them, and versioning keeps every old copy. Someone left a lifecycle.json in the repository.",
       goal: "Expire old versions after 30 days, without expiring the current backups.",
       done: "Old versions expire after 30 days; current backups stay.",
       setup(a) {
-        const b = a.addBucket("quest-kitchen-backups", { versioning: "Enabled", gb: 900, noncurrentGb: 14000, churnGb: 30 });
+        const b = a.addBucket("nimbus-kitchen-backups", { versioning: "Enabled", gb: 900, noncurrentGb: 14000, churnGb: 30 });
         b.objects["nightly/orders.dump"] = Array.from({ length: 6 }, (_, n) => ({ v: hexOf("dump" + n, 32), size: 30e9, modified: START - n * DAY, owner: ACCOUNT, body: "" }));
         a.files["lifecycle.json"] = pretty({ Rules: [{ ID: "tidy-backups", Status: "Enabled", Filter: { Prefix: "nightly/" }, Expiration: { Days: 30 } }] });
       },
       won(a) {
-        const rules = ((a.buckets["quest-kitchen-backups"] || {}).lifecycle || { Rules: [] }).Rules.filter((r) => r.Status === "Enabled");
+        const rules = ((a.buckets["nimbus-kitchen-backups"] || {}).lifecycle || { Rules: [] }).Rules.filter((r) => r.Status === "Enabled");
         return rules.some((r) => r.NoncurrentVersionExpiration && Number(r.NoncurrentVersionExpiration.NoncurrentDays) <= 30) && !rules.some((r) => r.Expiration && r.Expiration.Days);
       },
-      check: (a) => ({ label: "Noncurrent versions kept", text: `${Math.round(a.noncurrent(a.buckets["quest-kitchen-backups"])).toLocaleString("en-US")} GB` }),
+      check: (a) => ({ label: "Noncurrent versions kept", text: `${Math.round(a.noncurrent(a.buckets["nimbus-kitchen-backups"])).toLocaleString("en-US")} GB` }),
       hints: [
-        "aws s3api get-bucket-versioning --bucket quest-kitchen-backups, then aws s3api list-object-versions --bucket quest-kitchen-backups --prefix nightly/ --query 'length(Versions)'",
+        "aws s3api get-bucket-versioning --bucket nimbus-kitchen-backups, then aws s3api list-object-versions --bucket nimbus-kitchen-backups --prefix nightly/ --query 'length(Versions)'",
         "Read lifecycle.json before applying it: Expiration acts on current versions, the backups you still need. Old versions are NoncurrentVersionExpiration.",
-        "Make it {\"Rules\": [{\"ID\": \"expire-old-versions\", \"Status\": \"Enabled\", \"Filter\": {}, \"NoncurrentVersionExpiration\": {\"NoncurrentDays\": 30}}]}, then aws s3api put-bucket-lifecycle-configuration --bucket quest-kitchen-backups --lifecycle-configuration file://lifecycle.json"
+        "Make it {\"Rules\": [{\"ID\": \"expire-old-versions\", \"Status\": \"Enabled\", \"Filter\": {}, \"NoncurrentVersionExpiration\": {\"NoncurrentDays\": 30}}]}, then aws s3api put-bucket-lifecycle-configuration --bucket nimbus-kitchen-backups --lifecycle-configuration file://lifecycle.json"
       ],
       lesson: "Versioning keeps every overwritten copy until a lifecycle rule expires it, and each copy is billed. Suspending versioning does not delete the old versions. Pair versioning with NoncurrentVersionExpiration from day one.",
-      tries: ["aws s3api get-bucket-versioning --bucket quest-kitchen-backups", "cat lifecycle.json"],
-      edit: ["lifecycle.json"], blanks: { bucket: "quest-kitchen-backups" }
+      tries: ["aws s3api get-bucket-versioning --bucket nimbus-kitchen-backups", "cat lifecycle.json"],
+      edit: ["lifecycle.json"], blanks: { bucket: "nimbus-kitchen-backups" }
     },
 
     // Security
@@ -4683,7 +4683,7 @@
       setup(a) {
         a.addUser("report-bot", [awsPolicyArn("AmazonS3ReadOnlyAccess")]);
         const k = a.addKey(a.iam.users["report-bot"], "reportbot");
-        a.files["app/settings.py"] = `# Settings for the nightly report\nREPORT_BUCKET = "quest-kitchen-reports"\nAWS_ACCESS_KEY_ID = "${k.id}"\nAWS_SECRET_ACCESS_KEY = "${k.secret}"\n`;
+        a.files["app/settings.py"] = `# Settings for the nightly report\nREPORT_BUCKET = "nimbus-kitchen-reports"\nAWS_ACCESS_KEY_ID = "${k.id}"\nAWS_SECRET_ACCESS_KEY = "${k.secret}"\n`;
         a.files["app/report.py"] = "import boto3\nfrom settings import REPORT_BUCKET\n";
         a.git = [["9f3c2e1", "Add nightly report settings"], ["4b7a019", "Initial report job"]];
         a.events.push({ name: "ListBuckets", source: "s3.amazonaws.com", user: "report-bot", key: k.id, at: START - 20 * 60e3, ip: "198.51.100.66", agent: "python-requests/2.31" },
@@ -4726,14 +4726,14 @@
     },
     {
       id: "kmsdecrypt", title: "KMS key policy blocks decrypt", level: "15",
-      story: "The payments job, running as the payments-app role, cannot read settlement files from quest-kitchen-payments. Its IAM policy allows both s3:GetObject and kms:Decrypt.",
+      story: "The payments job, running as the payments-app role, cannot read settlement files from nimbus-kitchen-payments. Its IAM policy allows both s3:GetObject and kms:Decrypt.",
       goal: "Let payments-app decrypt with the payments key, and nobody else.",
       done: "payments-app can decrypt, and the key is not open to others.",
       setup(a) {
         const kp = doc({ Sid: "KeyAdministrators", Effect: "Allow", Principal: { AWS: `arn:aws:iam::${ACCOUNT}:role/PlatformAdmin` }, Action: "kms:*", Resource: "*" });
         const k = a.addKmsKey("payments", kp);
-        a.addBucket("quest-kitchen-payments", { kms: k.arn, objects: { "settlements/2026-10-29.csv": { size: 7100, body: "date,amount\n2026-10-29,18220.40\n" } } });
-        a.addRole("payments-app", trustService("ec2.amazonaws.com"), [], { "payments": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::quest-kitchen-payments", "arn:aws:s3:::quest-kitchen-payments/*"] }, { Effect: "Allow", Action: "kms:Decrypt", Resource: k.arn }) });
+        a.addBucket("nimbus-kitchen-payments", { kms: k.arn, objects: { "settlements/2026-10-29.csv": { size: 7100, body: "date,amount\n2026-10-29,18220.40\n" } } });
+        a.addRole("payments-app", trustService("ec2.amazonaws.com"), [], { "payments": doc({ Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket"], Resource: ["arn:aws:s3:::nimbus-kitchen-payments", "arn:aws:s3:::nimbus-kitchen-payments/*"] }, { Effect: "Allow", Action: "kms:Decrypt", Resource: k.arn }) });
         a.profiles.payments = { sso: true, role: "payments-app", session: "you" };
         a.files["key-policy.json"] = pretty(kp);
       },
@@ -4744,13 +4744,13 @@
       },
       check: (a) => ({ label: "payments-app: kms:Decrypt", text: evaluate(a, a.role("payments-app"), "kms:Decrypt", a.kmsKeys[0].arn, { resPolicy: a.kmsKeys[0].policy, kms: true }).allowed ? "allowed" : "denied by the key policy" }),
       hints: [
-        "aws s3 cp s3://quest-kitchen-payments/settlements/2026-10-29.csv . --profile payments",
+        "aws s3 cp s3://nimbus-kitchen-payments/settlements/2026-10-29.csv . --profile payments",
         "aws kms get-key-policy --key-id alias/payments --query Policy --output text. With KMS the key policy must allow access, to the role or to the account; IAM alone is never enough.",
         `Add to key-policy.json: {"Sid": "PaymentsAppDecrypt", "Effect": "Allow", "Principal": {"AWS": "arn:aws:iam::${ACCOUNT}:role/payments-app"}, "Action": "kms:Decrypt", "Resource": "*"}, then aws kms put-key-policy --key-id alias/payments --policy-name default --policy file://key-policy.json`
       ],
       lesson: "Every KMS key has a key policy and nothing works without it, AdministratorAccess included. KMS also refuses a new policy that would lock you out, which is why the administrators' statement must stay.",
-      tries: ["aws s3 cp s3://quest-kitchen-payments/settlements/2026-10-29.csv . --profile payments", "aws kms get-key-policy --key-id alias/payments --query Policy --output text"],
-      edit: ["key-policy.json"], blanks: { bucket: "quest-kitchen-payments", role: "payments-app", profile: "payments" }
+      tries: ["aws s3 cp s3://nimbus-kitchen-payments/settlements/2026-10-29.csv . --profile payments", "aws kms get-key-policy --key-id alias/payments --query Policy --output text"],
+      edit: ["key-policy.json"], blanks: { bucket: "nimbus-kitchen-payments", role: "payments-app", profile: "payments" }
     },
 
     // Coverage round: CDN, peering, containers, data services, CORS, limits.
@@ -4760,8 +4760,8 @@
       goal: "Serve https://www.example.com from CloudFront with a valid certificate.",
       done: "CloudFront serves www.example.com with a valid us-east-1 certificate.",
       setup(a) {
-        a.addBucket("quest-kitchen-web", { objects: { "index.html": { body: "<!doctype html><title>Quest Kitchen</title><h1>Dinner, delivered</h1>" } } });
-        const d = a.addDist("www.example.com", "quest-kitchen-web");
+        a.addBucket("nimbus-kitchen-web", { objects: { "index.html": { body: "<!doctype html><title>Nimbus Kitchen</title><h1>Dinner, delivered</h1>" } } });
+        const d = a.addDist("www.example.com", "nimbus-kitchen-web");
         d.aliases = [];
         a.addCert("www.example.com", "eu-west-1", "ISSUED");
         a.addCert("www.example.com", "us-east-1", "PENDING_VALIDATION");
@@ -4786,17 +4786,17 @@
       goal: "Make CloudFront serve the new index.html.",
       done: "CloudFront serves version 1.9.",
       setup(a) {
-        const b = a.addBucket("quest-kitchen-web", { versioning: "Enabled" });
-        b.objects["index.html"] = [{ v: hexOf("web19", 32), size: 72, modified: START - HOUR, owner: ACCOUNT, body: "<!doctype html><title>Quest Kitchen 1.9</title>" },
-          { v: hexOf("web18", 32), size: 72, modified: START - 3 * DAY, owner: ACCOUNT, body: "<!doctype html><title>Quest Kitchen 1.8</title>" }];
-        const d = a.addDist("www.example.com", "quest-kitchen-web");
+        const b = a.addBucket("nimbus-kitchen-web", { versioning: "Enabled" });
+        b.objects["index.html"] = [{ v: hexOf("web19", 32), size: 72, modified: START - HOUR, owner: ACCOUNT, body: "<!doctype html><title>Nimbus Kitchen 1.9</title>" },
+          { v: hexOf("web18", 32), size: 72, modified: START - 3 * DAY, owner: ACCOUNT, body: "<!doctype html><title>Nimbus Kitchen 1.8</title>" }];
+        const d = a.addDist("www.example.com", "nimbus-kitchen-web");
         d.cert = a.addCert("www.example.com", "us-east-1", "ISSUED").arn;
-        d.cache["/index.html"] = { body: "<!doctype html><title>Quest Kitchen 1.8</title>", at: START - 11 * HOUR };
+        d.cache["/index.html"] = { body: "<!doctype html><title>Nimbus Kitchen 1.8</title>", at: START - 11 * HOUR };
       },
       won: (a) => !a.dists[0].cache["/index.html"] || a.dists[0].cache["/index.html"].body.includes("1.9"),
       check: (a) => ({ label: "www.example.com serves", text: (a.dists[0].cache["/index.html"] || { body: "1.9" }).body.includes("1.9") ? "version 1.9" : "version 1.8 (cached)" }),
       hints: [
-        "curl -i https://www.example.com: look at X-Cache and Age. Then aws s3 cp s3://quest-kitchen-web/index.html - shows what the bucket holds.",
+        "curl -i https://www.example.com: look at X-Cache and Age. Then aws s3 cp s3://nimbus-kitchen-web/index.html - shows what the bucket holds.",
         "The cache keeps the old copy until its TTL runs out. Uploading again changes nothing at the edge. Ask CloudFront to drop it: an invalidation.",
         "aws cloudfront create-invalidation --distribution-id <id> --paths /index.html (or \"/*\"), then curl again once it completes."
       ],
@@ -4885,7 +4885,7 @@
       goal: "Give the OnCall role read-only access to the cluster with an EKS access entry.",
       done: "OnCall can read the cluster, and only read it.",
       setup(a) {
-        a.addRole("OnCall", { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Federated: `arn:aws:iam::${ACCOUNT}:saml-provider/QuestKitchenSSO` }, Action: "sts:AssumeRoleWithSAML" }] }, [awsPolicyArn("ReadOnlyAccess")],
+        a.addRole("OnCall", { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Federated: `arn:aws:iam::${ACCOUNT}:saml-provider/NimbusKitchenSSO` }, Action: "sts:AssumeRoleWithSAML" }] }, [awsPolicyArn("ReadOnlyAccess")],
           { eks: doc({ Effect: "Allow", Action: ["eks:DescribeCluster", "eks:ListClusters"], Resource: "*" }) });
         a.profiles.oncall = { sso: true, role: "OnCall", session: "you" };
         a.eks = { name: "kitchen-eks", authMode: "API_AND_CONFIG_MAP", entries: [{ principal: iamArn("role", "ci-cluster-bootstrap"), policies: [{ arn: eksPolicyArn("AmazonEKSClusterAdminPolicy"), scope: "cluster", namespaces: [] }], at: START - 200 * DAY }] };
@@ -4980,27 +4980,27 @@
     },
     {
       id: "s3cors", title: "S3 CORS error in the browser", level: "09",
-      story: "The new menu page at https://shop.example.com fetches menu.json from S3 with a presigned URL. The browser console says: Access to fetch at 'https://quest-kitchen-media.s3.us-east-1.amazonaws.com/menu.json' from origin 'https://shop.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
-      goal: "Allow https://shop.example.com, and only it, to read from quest-kitchen-media in the browser.",
+      story: "The new menu page at https://shop.example.com fetches menu.json from S3 with a presigned URL. The browser console says: Access to fetch at 'https://nimbus-kitchen-media.s3.us-east-1.amazonaws.com/menu.json' from origin 'https://shop.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      goal: "Allow https://shop.example.com, and only it, to read from nimbus-kitchen-media in the browser.",
       done: "The browser may read the bucket from https://shop.example.com.",
       setup(a) {
-        a.addBucket("quest-kitchen-media", { objects: { "menu.json": { body: "{\"dishes\":[\"ramen\",\"bibimbap\"]}" } } });
+        a.addBucket("nimbus-kitchen-media", { objects: { "menu.json": { body: "{\"dishes\":[\"ramen\",\"bibimbap\"]}" } } });
         a.files["cors.json"] = pretty({ CORSRules: [{ AllowedOrigins: ["https://example.com"], AllowedMethods: ["GET"], AllowedHeaders: ["*"], MaxAgeSeconds: 3000 }] });
       },
       won(a) {
-        const rules = a.buckets["quest-kitchen-media"].cors || [];
+        const rules = a.buckets["nimbus-kitchen-media"].cors || [];
         const allows = (origin) => rules.some((r) => asList(r.AllowedOrigins).some((x) => glob(x, origin)) && asList(r.AllowedMethods).includes("GET"));
-        return allows("https://shop.example.com") && !allows("https://evil.example.net") && !a.isPublic(a.buckets["quest-kitchen-media"]);
+        return allows("https://shop.example.com") && !allows("https://evil.example.net") && !a.isPublic(a.buckets["nimbus-kitchen-media"]);
       },
-      check: (a) => ({ label: "Fetch from https://shop.example.com", text: (a.buckets["quest-kitchen-media"].cors || []).some((r) => asList(r.AllowedOrigins).some((x) => glob(x, "https://shop.example.com")) && asList(r.AllowedMethods).includes("GET")) ? "allowed by CORS" : "blocked by CORS" }),
+      check: (a) => ({ label: "Fetch from https://shop.example.com", text: (a.buckets["nimbus-kitchen-media"].cors || []).some((r) => asList(r.AllowedOrigins).some((x) => glob(x, "https://shop.example.com")) && asList(r.AllowedMethods).includes("GET")) ? "allowed by CORS" : "blocked by CORS" }),
       hints: [
-        "aws s3 presign s3://quest-kitchen-media/menu.json, then curl -i -H 'Origin: https://shop.example.com' '<the URL>'. The object comes back, but without Access-Control-Allow-Origin.",
-        "aws s3api get-bucket-cors --bucket quest-kitchen-media. CORS is not about permission to the object (the presigned URL has that); it tells the browser which other sites may read the response. cors.json has the wrong origin.",
-        "Set AllowedOrigins to [\"https://shop.example.com\"] in cors.json, then aws s3api put-bucket-cors --bucket quest-kitchen-media --cors-configuration file://cors.json"
+        "aws s3 presign s3://nimbus-kitchen-media/menu.json, then curl -i -H 'Origin: https://shop.example.com' '<the URL>'. The object comes back, but without Access-Control-Allow-Origin.",
+        "aws s3api get-bucket-cors --bucket nimbus-kitchen-media. CORS is not about permission to the object (the presigned URL has that); it tells the browser which other sites may read the response. cors.json has the wrong origin.",
+        "Set AllowedOrigins to [\"https://shop.example.com\"] in cors.json, then aws s3api put-bucket-cors --bucket nimbus-kitchen-media --cors-configuration file://cors.json"
       ],
       lesson: "A CORS error is the browser protecting users, not S3 refusing access: the request often succeeds and the browser throws the answer away. Allow exactly the origins and methods your site uses; \"*\" lets any site read the response in its visitors' browsers.",
-      tries: ["aws s3api get-bucket-cors --bucket quest-kitchen-media", "aws s3 presign s3://quest-kitchen-media/menu.json"],
-      edit: ["cors.json"], blanks: { bucket: "quest-kitchen-media" }
+      tries: ["aws s3api get-bucket-cors --bucket nimbus-kitchen-media", "aws s3 presign s3://nimbus-kitchen-media/menu.json"],
+      edit: ["cors.json"], blanks: { bucket: "nimbus-kitchen-media" }
     },
     {
       id: "rdsrefused", title: "RDS connection refused", level: "11",
@@ -5241,7 +5241,7 @@
     hintLevel = 0;
     editing = null;
     out.replaceChildren();
-    print(`On call at Quest Kitchen (account ${ACCOUNT}, a simulation). ${scenario.story}`, "dim");
+    print(`On call at Nimbus Kitchen (account ${ACCOUNT}, a simulation). ${scenario.story}`, "dim");
     print("Find out why with the aws CLI, then fix it. Type 'help' for commands, 'hint' if stuck.", "dim");
     print("");
     goal.textContent = "Goal: " + scenario.goal;
@@ -5259,6 +5259,7 @@
     if (solved || !scenario.won(acct)) return;
     solved = true;
     saved.add(scenario.id);
+    document.dispatchEvent(new CustomEvent("dq:solved", { detail: scenario.id }));
     renderPicker();
     const b = picker.querySelector('.pg-scn[aria-pressed="true"]');
     if (b) {
@@ -5269,7 +5270,7 @@
     goal.className = "pg-goal done";
     print("");
     print("✓ Fixed. " + scenario.lesson, "ok");
-    const lv = window.QUEST && window.QUEST.levels.find((l) => l.id === scenario.level);
+    const lv = window.TRACK && window.TRACK.levels.find((l) => l.id === scenario.level);
     if (lv) print(`  Learn more in Level ${lv.id} · ${lv.title}.`, "dim");
     const next = SCENARIOS.find((s) => !saved.get().includes(s.id));
     print(next ? `  Next scenario: ${next.title}. Pick it above, or type 'next'.` : "  You solved every scenario.", "dim");
@@ -5340,7 +5341,7 @@
 
   const reveal = () => { term.scrollIntoView({ block: "center" }); input.focus({ preventScroll: true }); };
   window.AQPlayground = {
-    scenarios: SCENARIOS.map((s) => ({ id: s.id, title: s.title, group: s.group, story: s.story })),
+    scenarios: SCENARIOS.map((s) => ({ id: s.id, title: s.title, group: s.group, story: s.story, level: s.level })),
     load: (id, quiet) => { load(id); setHash(id); if (!quiet) reveal(); },
     // From the cheat sheet: open the scenario a command needs, fill its blanks and run it.
     prefill: (cmd, where) => {

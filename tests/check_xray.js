@@ -12,7 +12,7 @@ global.window = {};
 require(path.join(root, "site/policy-xray.js"));
 require(path.join(root, "site/data.js"));
 const { explain } = window.AQPolicy;
-const Q = window.QUEST;
+const Q = window.TRACK;
 const run = (d) => explain(JSON.stringify(d));
 const warnings = (r) => r.lines.flatMap((l) => l.warns).join("\n");
 const doc = (...Statement) => ({ Version: "2012-10-17", Statement });

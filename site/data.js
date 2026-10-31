@@ -1,7 +1,7 @@
-// Content for the AWS Quest site. Plain data, no logic.
+// Content for the DevOps Nimbus AWS site. Plain data, no logic.
 "use strict";
 
-window.QUEST = {
+window.TRACK = {
   repo: "https://github.com/SandeepKomal/AWS",
   site: "https://sandeepkomal.github.io/AWS/",
 
@@ -90,10 +90,10 @@ window.QUEST = {
   xray: [
     { name: "S3FullAccess role policy", path: "AWS/IAM/S3FullAccess", text: { Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "s3:*", Resource: "*" }] } },
     { name: "S3FullAccess trust policy", path: "AWS/IAM/S3FullAccess", text: { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: ["ec2.amazonaws.com", "lambda.amazonaws.com"] }, Action: ["sts:AssumeRole"] }] } },
-    { name: "Public bucket policy", path: null, text: { Version: "2012-10-17", Statement: [{ Sid: "PublicRead", Effect: "Allow", Principal: "*", Action: "s3:GetObject", Resource: "arn:aws:s3:::quest-kitchen-invoices/*" }] } },
+    { name: "Public bucket policy", path: null, text: { Version: "2012-10-17", Statement: [{ Sid: "PublicRead", Effect: "Allow", Principal: "*", Action: "s3:GetObject", Resource: "arn:aws:s3:::nimbus-kitchen-invoices/*" }] } },
     { name: "Scoped deploy policy", path: null, text: { Version: "2012-10-17", Statement: [
-      { Sid: "DeployWebAssets", Effect: "Allow", Action: ["s3:PutObject", "s3:DeleteObject"], Resource: "arn:aws:s3:::quest-kitchen-assets/web/*" },
-      { Sid: "ListWebAssets", Effect: "Allow", Action: "s3:ListBucket", Resource: "arn:aws:s3:::quest-kitchen-assets", Condition: { StringLike: { "s3:prefix": "web/*" } } },
+      { Sid: "DeployWebAssets", Effect: "Allow", Action: ["s3:PutObject", "s3:DeleteObject"], Resource: "arn:aws:s3:::nimbus-kitchen-assets/web/*" },
+      { Sid: "ListWebAssets", Effect: "Allow", Action: "s3:ListBucket", Resource: "arn:aws:s3:::nimbus-kitchen-assets", Condition: { StringLike: { "s3:prefix": "web/*" } } },
       { Sid: "PassOnlyTheWebRole", Effect: "Allow", Action: "iam:PassRole", Resource: "arn:aws:iam::111122223333:role/web-role", Condition: { StringEquals: { "iam:PassedToService": "ec2.amazonaws.com" } } }] } }
   ],
   xrayExample: { Version: "2012-10-17", Statement: [
@@ -300,7 +300,7 @@ window.QUEST = {
       fix: ["`aws sso login --profile <profile>`"],
       prevent: ["Use an sso-session block in ~/.aws/config so several profiles share one login"] },
     { id: "access-denied-identity", title: "AccessDenied: no identity-based policy allows the action", level: "01", scenarios: ["s3list"],
-      errors: ["An error occurred (AccessDenied) when calling the ListObjectsV2 operation: User: arn:aws:iam::111122223333:user/analyst is not authorized to perform: s3:ListBucket on resource: \"arn:aws:s3:::quest-kitchen-reports\" because no identity-based policy allows the s3:ListBucket action"],
+      errors: ["An error occurred (AccessDenied) when calling the ListObjectsV2 operation: User: arn:aws:iam::111122223333:user/analyst is not authorized to perform: s3:ListBucket on resource: \"arn:aws:s3:::nimbus-kitchen-reports\" because no identity-based policy allows the s3:ListBucket action"],
       meaning: "Nothing allows this principal to do this action on this resource. The message names all three; read it to the end.",
       causes: ["The policy allows a different action (s3:GetObject is not s3:ListBucket)", "The policy names a different resource (bucket/* is not the bucket)", "A condition in the policy does not match the request"],
       confirm: ["aws sts get-caller-identity", "aws iam simulate-principal-policy --policy-source-arn <arn> --action-names <action> --resource-arns <arn>"],
@@ -342,7 +342,7 @@ window.QUEST = {
       fix: ["Set the sub condition to the exact repository and ref, for example repo:owner/repo:ref:refs/heads/main"],
       prevent: ["Never use repo:* or a bare *; scope to repository and branch or environment"] },
     { id: "scp-denied", title: "Explicit deny in a service control policy", level: "03", scenarios: ["scp"],
-      errors: ["is not authorized to perform: s3:CreateBucket on resource: \"arn:aws:s3:::quest-kitchen-archive-eu\" with an explicit deny in a service control policy", "because no service control policy allows the"],
+      errors: ["is not authorized to perform: s3:CreateBucket on resource: \"arn:aws:s3:::nimbus-kitchen-archive-eu\" with an explicit deny in a service control policy", "because no service control policy allows the"],
       meaning: "Your organization's management account caps what this account can do. Nothing inside the account overrides it.",
       causes: ["A Region restriction", "A guard rail that blocks disabling CloudTrail, leaving the organization or changing networking"],
       confirm: ["aws organizations describe-organization", "Ask the platform team which SCPs apply"],
@@ -538,7 +538,7 @@ window.QUEST = {
       fix: ["Add a route to the other VPC's CIDR via the peering in both VPCs' route tables", "Allow the other VPC's CIDR (or security group, same Region) in the security groups"],
       prevent: ["Plan non-overlapping CIDRs for every VPC up front; use a Transit Gateway for more than a few VPCs"] },
     { id: "s3-cors", title: "Blocked by CORS policy: No 'Access-Control-Allow-Origin' header", level: "09", scenarios: ["s3cors"],
-      errors: ["Access to fetch at 'https://quest-kitchen-media.s3.us-east-1.amazonaws.com/menu.json' from origin 'https://shop.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.", "CORSResponse: This CORS request is not allowed. This is usually because the evalution of Origin, request method / Access-Control-Request-Method or Access-Control-Request-Headers are not whitelisted by the resource's CORS spec.", "An error occurred (NoSuchCORSConfiguration) when calling the GetBucketCors operation: The CORS configuration does not exist"],
+      errors: ["Access to fetch at 'https://nimbus-kitchen-media.s3.us-east-1.amazonaws.com/menu.json' from origin 'https://shop.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.", "CORSResponse: This CORS request is not allowed. This is usually because the evalution of Origin, request method / Access-Control-Request-Method or Access-Control-Request-Headers are not whitelisted by the resource's CORS spec.", "An error occurred (NoSuchCORSConfiguration) when calling the GetBucketCors operation: The CORS configuration does not exist"],
       meaning: "The browser fetched from another origin and the bucket's answer did not say that your site may read it. The request may even have succeeded.",
       causes: ["No CORS configuration on the bucket", "AllowedOrigins does not match your site exactly (scheme, host and port)", "The method or headers (for example PUT with Content-Type) are not allowed"],
       confirm: ["aws s3api get-bucket-cors --bucket <bucket>", "curl -i -H 'Origin: https://your.site' '<object or presigned URL>'"],
