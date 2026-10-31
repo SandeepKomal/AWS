@@ -741,4 +741,8 @@ assert.match(run(a, "frobnicate"), /zsh: command not found: frobnicate/);
 assert.strictEqual(run(a, "aws sts get-caller-identity --query Account --output text"), ACCOUNT);
 assert.match(run(a, "aws sts get-caller-identity | jq -r .Arn"), /^arn:aws:sts::/);
 
+// The first screen reads the scenario index, so it must match the playground.
+const index = require(path.resolve(__dirname, "../tools/build-scenarios.js"));
+assert.strictEqual(require("fs").readFileSync(index.file, "utf8"), index.render(), "site/scenarios.js is out of date: run node tools/build-scenarios.js");
+
 console.log(`playground ok: ${SCENARIOS.length} scenarios in ${GROUPS.length} groups, every fix and wrong move checked`);

@@ -48,6 +48,7 @@ The site is static (`site/`), with no dependencies, trackers or cookies. Run the
 ```bash
 node tests/check_site_data.js && node tests/check_playground.js && node tests/fuzz_playground.js && node tests/check_xray.js && node tests/check_problems.js
 node tools/build-problems.js   # after changing the troubleshooting entries in site/data.js
+node tools/build-scenarios.js  # after adding or renaming a playground scenario, or changing its prices
 python3 -m http.server -d site 8000   # then open http://localhost:8000
 ```
 
@@ -199,6 +200,7 @@ Linux/
 site/        DevOps Nimbus AWS, the learning site (GitHub Pages)
 tests/       Node checks for the site: data, simulator, fuzzer, X-ray, problems page
 tools/       build-problems.js: generates site/problems.html and site/sitemap.xml
+             build-scenarios.js: generates site/scenarios.js, the scenario index the first screen reads
 ```
 
 ## Troubleshooting
